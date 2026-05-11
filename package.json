@@ -1,10 +1,14 @@
 {
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/node": "^25.6.2",
+    "dotenv": "^17.4.2",
+    "nodemon": "^3.1.14",
+    "prisma": "^7.8.0"
   },
   "dependencies": {
+    "@prisma/adapter-mssql": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
     "express": "^5.2.1"
   },
   "name": "backend",
@@ -24,7 +28,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/Clsssroom-Website/backend/issues"
   },
