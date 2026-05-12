@@ -1,5 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import prisma from "../config/prisma.js";
+import { NotFoundError } from "../errors/index.js";
 
 // Lấy danh sách tất cả users
 export const getAllUsers = async (_req: Request, res: Response, next: NextFunction) => {
@@ -35,7 +36,9 @@ export const getUserById = async (
         role: true,
       },
     });
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
     res.json({ success: true, data: user });
   } catch (err) {
     next(err);

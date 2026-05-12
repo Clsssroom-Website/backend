@@ -2,6 +2,7 @@ import express, { type Request, type Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import errorHandler from "./middlewares/errorHandler.js";
+import { notFoundHandler } from "./middlewares/notFoundHandler.js";
 import userRoutes from "./routes/userRoutes.js";
 
 dotenv.config();
@@ -17,6 +18,11 @@ app.get("/", (_req: Request, res: Response) => {
 });
 
 app.use("/api/v1/users", userRoutes);
+
+// Mount notFoundHandler after all route registrations
+app.use(notFoundHandler);
+
+// Mount the global error handler as the absolute last middleware
 app.use(errorHandler);
 
 export default app;
