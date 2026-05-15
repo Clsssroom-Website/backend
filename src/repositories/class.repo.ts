@@ -1,4 +1,4 @@
-﻿import prisma from "../config/prisma.js";
+import prisma from "../config/prisma.js";
 
 // Lấy danh sách lớp học theo teacherId
 export const findAllClassesByTeacherId = async (teacherId: string) => {
@@ -45,5 +45,39 @@ export const updateClass = async (classId: string, data: any) => {
 export const deleteClass = async (classId: string) => {
   return prisma.classes.delete({
     where: { classId },
+  });
+};
+
+// Kiểm tra học sinh đã tham gia lớp chưa
+export const checkEnrollmentExists = async (classId: string, studentId: string) => {
+  return prisma.classEnrollments.findFirst({
+    where: { classId, studentId },
+  });
+};
+
+// Thêm học sinh vào lớp học
+export const createEnrollment = async (data: {
+  enrollmentId: string;
+  classId: string;
+  studentId: string;
+}) => {
+  return prisma.classEnrollments.create({ data });
+};
+
+// Lấy danh sách học sinh trong lớp
+export const findStudentsByClassId = async (classId: string) => {
+  return prisma.classEnrollments.findMany({
+    where: { classId },
+    include: {
+      Users: {
+        select: {
+          userId: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+    orderBy: { joinTime: "asc" },
   });
 };
