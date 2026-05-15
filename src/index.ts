@@ -5,6 +5,7 @@ import errorHandler from "./middlewares/errorHandler.js";
 import { notFoundHandler } from "./middlewares/notFoundHandler.js";
 import userRoutes from "./routes/userRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import classRoutes from "./routes/classRoutes.js";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.get("/", (_req: Request, res: Response) => {
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/classes", classRoutes);
 
 // Mount notFoundHandler after all route registrations
 app.use(notFoundHandler);

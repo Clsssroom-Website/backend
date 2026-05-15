@@ -1,18 +1,10 @@
-import { type NextFunction, type Request, type Response } from "express";
-import prisma from "../config/prisma.js";
-import { NotFoundError } from "../errors/index.js";
+﻿import { type NextFunction, type Request, type Response } from "express";
+import * as UserService from "../services/user.service.js";
 
 // Lấy danh sách tất cả users
 export const getAllUsers = async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const users = await prisma.users.findMany({
-      select: {
-        userId: true,
-        name: true,
-        email: true,
-        role: true,
-      },
-    });
+    const users = await UserService.getAllUsers();
     res.json({ success: true, data: users });
   } catch (err) {
     next(err);
@@ -27,18 +19,8 @@ export const getUserById = async (
 ) => {
   try {
     const userId = req.params.id;
-    const user = await prisma.users.findUnique({
-      where: { userId },
-      select: {
-        userId: true,
-        name: true,
-        email: true,
-        role: true,
-      },
-    });
-    if (!user) {
-      throw new NotFoundError("User not found");
-    }
+    const user = await UserService.getUserById(userId);
+    
     res.json({ success: true, data: user });
   } catch (err) {
     next(err);

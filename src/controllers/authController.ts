@@ -1,5 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import * as AuthService from "../services/auth.service.js";
+import { NotFoundError } from "../errors/index.js";
 
 // POST /api/v1/auth/register
 export const register = async (req: Request, res: Response, next: NextFunction) => {
@@ -25,7 +26,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       data: result,
     });
   } catch (err) {
-    next(err);
+    console.log("Error in register controller:", err);
+    res.status(500).json({ success: false, message: "Đăng ký thất bại. Vui lòng thử lại sau." });
   }
 };
 
@@ -47,6 +49,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       data: result,
     });
   } catch (err) {
-    next(err);
+    console.log("Error in login controller:", err);
+    res.status(401).json({ success: false, message: "Đăng nhập thất bại. Email hoặc mật khẩu không đúng." });
   }
 };
