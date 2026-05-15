@@ -1,5 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import * as AuthService from "../services/auth.service.js";
+import { ConsoleLogger } from "../utils/logger.js";
 
 // POST /api/v1/auth/register
 export const register = async (req: Request, res: Response, next: NextFunction) => {
@@ -25,7 +26,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       data: result,
     });
   } catch (err) {
-    next(err);
+    console.log(err);
+    res.status(500).json({ success: false, message: "Đăng ký thất bại!" });
   }
 };
 
@@ -47,6 +49,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       data: result,
     });
   } catch (err) {
-    next(err);
+    console.log(err);
+    res.status(500).json({ success: false, message: "Đăng nhập thất bại!" });
   }
 };
