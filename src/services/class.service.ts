@@ -1,7 +1,7 @@
-import { v4 as uuidv4 } from "uuid";
+﻿import { v4 as uuidv4 } from "uuid";
 import * as ClassRepo from "../repositories/class.repo.js";
+import { NotFoundError, ForbiddenError } from "../errors/index.js";
 
-// Hàm tạo random joinCode (6 ký tự: chữ + số)
 const generateJoinCode = (length = 6): string => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let result = "";
@@ -9,6 +9,11 @@ const generateJoinCode = (length = 6): string => {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+};
+
+// Lấy danh sách lớp học theo teacherId
+export const getAllClassesByTeacherId = async (teacherId: string) => {
+  return ClassRepo.findAllClassesByTeacherId(teacherId);
 };
 
 export const createClass = async (
@@ -20,7 +25,6 @@ export const createClass = async (
     topic?: string;
   }
 ) => {
-  // 1. Tạo joinCode duy nhất
   let joinCode = generateJoinCode();
   let existing = await ClassRepo.findClassByJoinCode(joinCode);
   while (existing) {
@@ -28,10 +32,7 @@ export const createClass = async (
     existing = await ClassRepo.findClassByJoinCode(joinCode);
   }
 
-  // 2. Sinh unique classId
   const classId = uuidv4();
-
-  // 3. (Facade pattern) Gộp logic xử lý: có thể bao gồm gửi notify, logs, metrics...
   const newClass = await ClassRepo.createClass({
     classId,
     teacherId,
@@ -44,4 +45,40 @@ export const createClass = async (
   });
 
   return newClass;
+};
+
+export const updateClass = async (
+  teacherId: string,
+  classId: string,
+  data: {
+    className?: string;
+    description?: string;
+    room?: string;
+    topic?: string;
+    status?: string;
+  }
+) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  if (existingClass.teacherId !== teacherId) {
+    throw new ForbiddenError("Bạn không phải là chủ sở hữu của lớp học này.");
+  }
+
+  return ClassRepo.updateClass(classId, data);
+};
+
+export const deleteClass = async (teacherId: string, classId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  if (existingClass.teacherId !== teacherId) {
+    throw new ForbiddenError("Bạn không có quyền xóa lớp học này.");
+  }
+
+  return ClassRepo.deleteClass(classId);
 };
