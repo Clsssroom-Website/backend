@@ -1,4 +1,11 @@
-import prisma from "../config/prisma.js";
+﻿import prisma from "../config/prisma.js";
+
+// Lấy danh sách tất cả users
+export const findAllUsers = async () => {
+  return prisma.users.findMany({
+    select: { userId: true, name: true, email: true, role: true },
+  });
+};
 
 // Tìm user theo email
 export const findUserByEmail = async (email: string) => {
