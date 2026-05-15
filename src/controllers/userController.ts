@@ -7,7 +7,8 @@ export const getAllUsers = async (_req: Request, res: Response, next: NextFuncti
     const users = await UserService.getAllUsers();
     res.json({ success: true, data: users });
   } catch (err) {
-    next(err);
+    console.log(err);
+    res.status(500).json({ success: false, message: "Lấy danh sách users thất bại!" });
   }
 };
 
@@ -23,6 +24,7 @@ export const getUserById = async (
     
     res.json({ success: true, data: user });
   } catch (err) {
-    next(err);
+    console.log(err);
+    res.status(500).json({ success: false, message: "Lấy thông tin user thất bại!" });
   }
 };
