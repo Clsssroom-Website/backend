@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import * as ClassRepo from "../repositories/class.repo.js";
+import { NotFoundError, ForbiddenError, BadRequestError } from "../errors/index.js";
 
-// Hàm tạo random joinCode (6 ký tự: chữ + số)
 const generateJoinCode = (length = 6): string => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let result = "";
@@ -9,6 +9,11 @@ const generateJoinCode = (length = 6): string => {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+};
+
+// Lấy danh sách lớp học theo teacherId
+export const getAllClassesByTeacherId = async (teacherId: string) => {
+  return ClassRepo.findAllClassesByTeacherId(teacherId);
 };
 
 export const createClass = async (
@@ -20,7 +25,6 @@ export const createClass = async (
     topic?: string;
   }
 ) => {
-  // 1. Tạo joinCode duy nhất
   let joinCode = generateJoinCode();
   let existing = await ClassRepo.findClassByJoinCode(joinCode);
   while (existing) {
@@ -28,10 +32,7 @@ export const createClass = async (
     existing = await ClassRepo.findClassByJoinCode(joinCode);
   }
 
-  // 2. Sinh unique classId
   const classId = uuidv4();
-
-  // 3. (Facade pattern) Gộp logic xử lý: có thể bao gồm gửi notify, logs, metrics...
   const newClass = await ClassRepo.createClass({
     classId,
     teacherId,
@@ -44,4 +45,89 @@ export const createClass = async (
   });
 
   return newClass;
+};
+
+export const updateClass = async (
+  teacherId: string,
+  classId: string,
+  data: {
+    className?: string;
+    description?: string;
+    room?: string;
+    topic?: string;
+    status?: string;
+  }
+) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  if (existingClass.teacherId !== teacherId) {
+    throw new ForbiddenError("Bạn không phải là chủ sở hữu của lớp học này.");
+  }
+
+  return ClassRepo.updateClass(classId, data);
+};
+
+export const deleteClass = async (teacherId: string, classId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  if (existingClass.teacherId !== teacherId) {
+    throw new ForbiddenError("Bạn không có quyền xóa lớp học này.");
+  }
+
+  return ClassRepo.deleteClass(classId);
+};
+
+export const joinClass = async (studentId: string, codeOrLink: string) => {
+  // 1. Phân tách lấy joinCode
+  let joinCode = codeOrLink.trim();
+  
+  // Nếu là link dạng http://localhost:3000/.../abcxyz
+  if (joinCode.includes("/")) {
+    const parts = joinCode.split("/");
+    joinCode = parts[parts.length - 1]; // Lấy phần tử cuối cùng
+  }
+
+  // 2. Tìm lớp theo joinCode
+  const targetClass = await ClassRepo.findClassByJoinCode(joinCode);
+  if (!targetClass) {
+    throw new NotFoundError("Không tìm thấy lớp học với mã hoặc link này.");
+  }
+
+  // 3. Kiểm tra đã tham gia chưa
+  const existingEnrollment = await ClassRepo.checkEnrollmentExists(targetClass.classId, studentId);
+  if (existingEnrollment) {
+    throw new BadRequestError("Bạn đã tham gia lớp học này rồi.");
+  }
+
+  // 4. Tạo Enrollment
+  const enrollmentId = uuidv4();
+  await ClassRepo.createEnrollment({
+    enrollmentId,
+    classId: targetClass.classId,
+    studentId,
+  });
+
+  return targetClass;
+};
+
+export const getClassStudents = async (classId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  const enrollments = await ClassRepo.findStudentsByClassId(classId);
+  // Format lại data cho đẹp: loại bỏ các trường thừa, chỉ lấy thông tin user
+  return enrollments.map((enrollment) => ({
+    enrollmentId: enrollment.enrollmentId,
+    joinTime: enrollment.joinTime,
+    status: enrollment.status,
+    student: enrollment.Users,
+  }));
 };
