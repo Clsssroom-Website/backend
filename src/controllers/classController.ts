@@ -52,6 +52,23 @@ export const createClass = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
+// GET /api/v1/classes/:id - API lấy chi tiết 1 lớp học
+export const getClassById = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userPayload = (req as any).user;
+    if (!userPayload || !userPayload.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
+    
+    // NOTE: Cần kiểm tra xem user này có trong lớp học hay không, hoặc là teacher. 
+    // Tam thời chỉ fetch lớp học.
+    const classId = req.params.id as string;
+    const classroom = await ClassService.getClassById(classId);
+
+    res.status(200).json({ success: true, message: "Lấy chi tiết lớp học thành công!", data: classroom });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // PUT /api/v1/classes/:id - API cập nhật lớp học
 export const updateClass = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
   try {

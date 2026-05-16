@@ -47,6 +47,14 @@ export const createClass = async (
   return newClass;
 };
 
+export const getClassById = async (classId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+  return existingClass;
+};
+
 export const updateClass = async (
   teacherId: string,
   classId: string,
