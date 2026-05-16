@@ -47,6 +47,14 @@ export const createClass = async (
   return newClass;
 };
 
+export const getClassById = async (classId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+  return existingClass;
+};
+
 export const updateClass = async (
   teacherId: string,
   classId: string,
@@ -81,53 +89,4 @@ export const deleteClass = async (teacherId: string, classId: string) => {
   }
 
   return ClassRepo.deleteClass(classId);
-};
-
-export const joinClass = async (studentId: string, codeOrLink: string) => {
-  // 1. Phân tách lấy joinCode
-  let joinCode = codeOrLink.trim();
-  
-  // Nếu là link dạng http://localhost:3000/.../abcxyz
-  if (joinCode.includes("/")) {
-    const parts = joinCode.split("/");
-    joinCode = parts[parts.length - 1]; // Lấy phần tử cuối cùng
-  }
-
-  // 2. Tìm lớp theo joinCode
-  const targetClass = await ClassRepo.findClassByJoinCode(joinCode);
-  if (!targetClass) {
-    throw new NotFoundError("Không tìm thấy lớp học với mã hoặc link này.");
-  }
-
-  // 3. Kiểm tra đã tham gia chưa
-  const existingEnrollment = await ClassRepo.checkEnrollmentExists(targetClass.classId, studentId);
-  if (existingEnrollment) {
-    throw new BadRequestError("Bạn đã tham gia lớp học này rồi.");
-  }
-
-  // 4. Tạo Enrollment
-  const enrollmentId = uuidv4();
-  await ClassRepo.createEnrollment({
-    enrollmentId,
-    classId: targetClass.classId,
-    studentId,
-  });
-
-  return targetClass;
-};
-
-export const getClassStudents = async (classId: string) => {
-  const existingClass = await ClassRepo.findClassById(classId);
-  if (!existingClass) {
-    throw new NotFoundError("Không tìm thấy lớp học.");
-  }
-
-  const enrollments = await ClassRepo.findStudentsByClassId(classId);
-  // Format lại data cho đẹp: loại bỏ các trường thừa, chỉ lấy thông tin user
-  return enrollments.map((enrollment) => ({
-    enrollmentId: enrollment.enrollmentId,
-    joinTime: enrollment.joinTime,
-    status: enrollment.status,
-    student: enrollment.Users,
-  }));
 };

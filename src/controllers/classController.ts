@@ -52,6 +52,23 @@ export const createClass = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
+// GET /api/v1/classes/:id - API lấy chi tiết 1 lớp học
+export const getClassById = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userPayload = (req as any).user;
+    if (!userPayload || !userPayload.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
+    
+    // NOTE: Cần kiểm tra xem user này có trong lớp học hay không, hoặc là teacher. 
+    // Tam thời chỉ fetch lớp học.
+    const classId = req.params.id as string;
+    const classroom = await ClassService.getClassById(classId);
+
+    res.status(200).json({ success: true, message: "Lấy chi tiết lớp học thành công!", data: classroom });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // PUT /api/v1/classes/:id - API cập nhật lớp học
 export const updateClass = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -84,43 +101,6 @@ export const deleteClass = async (req: Request<{ id: string }>, res: Response, n
     await ClassService.deleteClass(teacherId, classId);
 
     res.status(200).json({ message: "Xóa lớp học thành công!" });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// POST /api/v1/classes/join - API tham gia lớp học dành cho học sinh
-export const joinClass = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const userPayload = (req as any).user;
-    if (!userPayload || !userPayload.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
-    if (userPayload.role !== "student") throw new ForbiddenError("Chỉ có Học sinh mới được tham gia lớp học.");
-
-    const studentId = userPayload.userId;
-    const { codeOrLink } = req.body;
-
-    if (!codeOrLink) {
-      throw new BadRequestError("Vui lòng nhập mã hoặc link tham gia.");
-    }
-
-    const joinedClass = await ClassService.joinClass(studentId, codeOrLink);
-
-    res.status(200).json({ message: "Tham gia lớp học thành công!", data: joinedClass });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// GET /api/v1/classes/:id/students - API lấy danh sách học sinh của lớp
-export const getClassStudents = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const userPayload = (req as any).user;
-    if (!userPayload || !userPayload.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
-
-    const classId = req.params.id as string;
-    const students = await ClassService.getClassStudents(classId);
-
-    res.status(200).json({ message: "Lấy danh sách học sinh thành công!", data: students });
   } catch (error) {
     next(error);
   }
