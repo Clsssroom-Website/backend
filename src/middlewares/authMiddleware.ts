@@ -1,19 +1,15 @@
-﻿import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express";
 import { UnauthorizedError } from "../errors/index.js";
+import { TokenStrategy, TokenPayload } from "../services/strategies/token.strategy.js";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "classroom_secret_key";
+const tokenStrategy = new TokenStrategy();
 
 export interface AuthRequest extends Request {
-  user?: {
-    userId: string;
-    role: string;
-  };
+  user?: TokenPayload;
 }
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
-    // Lấy token từ header Authorization: Bearer <token>
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       throw new UnauthorizedError("Token không hợp lệ hoặc bị thiếu.");
@@ -25,15 +21,13 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       throw new UnauthorizedError("Token không được cung cấp.");
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+    const decoded = tokenStrategy.verifyAccessToken(token);
 
-    // Gắn thông tin payload vào req.user
     req.user = decoded;
 
-    next(); // Tiếp tục chuyển đến controller
-  } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
+    next();
+  } catch (error: any) {
+    if (error.name === "TokenExpiredError") {
       next(new UnauthorizedError("Token đã hết hạn."));
     } else if (error instanceof UnauthorizedError) {
       next(error);

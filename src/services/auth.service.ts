@@ -1,19 +1,17 @@
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import * as UserRepo from "../repositories/user.repo.js";
+import * as SessionRepo from "../repositories/session.repo.js";
+import { HashStrategy } from "./strategies/hash.strategy.js";
+import { TokenStrategy } from "./strategies/token.strategy.js";
+import { RegisterDTO, LoginDTO } from "../domain/validators/auth.validator.js";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "classroom_secret_key";
-const JWT_EXPIRES_IN = "7d";
+const hashStrategy = new HashStrategy();
+const tokenStrategy = new TokenStrategy();
 
-// ========== ĐĂNG KÝ ==========
-export const register = async (data: {
-  name: string;
-  email: string;
-  password: string;
-  role: "student" | "teacher";
-}) => {
-  // 1. Kiểm tra email đã tồn tại chưa
+// TTL for refresh token in Redis (7 days in seconds)
+const REFRESH_TOKEN_TTL = 7 * 24 * 60 * 60;
+
+export const register = async (data: RegisterDTO) => {
   const existing = await UserRepo.findUserByEmail(data.email);
   if (existing) {
     const error = new Error("Email này đã được đăng ký!") as Error & { statusCode: number };
@@ -21,10 +19,8 @@ export const register = async (data: {
     throw error;
   }
 
-  // 2. Hash mật khẩu
-  const passwordHash = await bcrypt.hash(data.password, 10);
+  const passwordHash = await hashStrategy.hash(data.password);
 
-  // 3. Tạo user mới
   const userId = uuidv4();
   const newUser = await UserRepo.createUser({
     userId,
@@ -34,13 +30,14 @@ export const register = async (data: {
     role: data.role,
   });
 
-  // 4. Tạo JWT token
-  const token = jwt.sign({ userId: newUser.userId, role: newUser.role }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
+  const accessToken = tokenStrategy.generateAccessToken({ userId: newUser.userId, role: newUser.role });
+  const refreshToken = tokenStrategy.generateRefreshToken({ userId: newUser.userId });
+
+  await SessionRepo.saveRefreshToken(newUser.userId, refreshToken, REFRESH_TOKEN_TTL);
 
   return {
-    token,
+    accessToken,
+    refreshToken,
     user: {
       userId: newUser.userId,
       name: newUser.name,
@@ -50,9 +47,7 @@ export const register = async (data: {
   };
 };
 
-// ========== ĐĂNG NHẬP ==========
-export const login = async (data: { email: string; password: string }) => {
-  // 1. Tìm user theo email
+export const login = async (data: LoginDTO) => {
   const user = await UserRepo.findUserByEmail(data.email);
   if (!user) {
     const error = new Error("Email hoặc mật khẩu không đúng!") as Error & { statusCode: number };
@@ -60,21 +55,21 @@ export const login = async (data: { email: string; password: string }) => {
     throw error;
   }
 
-  // 2. So sánh mật khẩu
-  const isMatch = await bcrypt.compare(data.password, user.passwordHash);
+  const isMatch = await hashStrategy.compare(data.password, user.passwordHash);
   if (!isMatch) {
     const error = new Error("Email hoặc mật khẩu không đúng!") as Error & { statusCode: number };
     error.statusCode = 401;
     throw error;
   }
 
-  // 3. Tạo JWT token
-  const token = jwt.sign({ userId: user.userId, role: user.role }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
+  const accessToken = tokenStrategy.generateAccessToken({ userId: user.userId, role: user.role });
+  const refreshToken = tokenStrategy.generateRefreshToken({ userId: user.userId });
+
+  await SessionRepo.saveRefreshToken(user.userId, refreshToken, REFRESH_TOKEN_TTL);
 
   return {
-    token,
+    accessToken,
+    refreshToken,
     user: {
       userId: user.userId,
       name: user.name,
@@ -82,4 +77,37 @@ export const login = async (data: { email: string; password: string }) => {
       role: user.role,
     },
   };
+};
+
+export const refreshAccessToken = async (refreshToken: string) => {
+  const userId = await SessionRepo.findUserIdByRefreshToken(refreshToken);
+  if (!userId) {
+    const error = new Error("Refresh token không hợp lệ hoặc đã hết hạn!") as Error & { statusCode: number };
+    error.statusCode = 401;
+    throw error;
+  }
+
+  try {
+    tokenStrategy.verifyRefreshToken(refreshToken);
+  } catch (err) {
+    const error = new Error("Refresh token không hợp lệ hoặc đã hết hạn!") as Error & { statusCode: number };
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const user = await UserRepo.findUserById(userId);
+  if (!user) {
+    const error = new Error("Không tìm thấy người dùng!") as Error & { statusCode: number };
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const accessToken = tokenStrategy.generateAccessToken({ userId: user.userId, role: user.role });
+  return accessToken;
+};
+
+export const logout = async (refreshToken: string) => {
+  if (refreshToken) {
+    await SessionRepo.deleteRefreshToken(refreshToken);
+  }
 };
