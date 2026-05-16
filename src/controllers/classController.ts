@@ -20,8 +20,12 @@ export const getAllClasses = async (req: Request, res: Response, next: NextFunct
     }
 
     res.status(200).json({ success: true, message: "Lấy danh sách lớp học thành công!", data: classes });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi lấy danh sách lớp học: " + (error.message || "Internal Server Error"),
+    });
   }
 };
 
@@ -50,8 +54,12 @@ export const createClass = async (req: Request, res: Response, next: NextFunctio
     });
 
     res.status(201).json({ message: "Tạo lớp học thành công!", data: newClass });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi tạo lớp học: " + (error.message || "Internal Server Error"),
+    });
   }
 };
 
@@ -67,8 +75,12 @@ export const getClassById = async (req: Request<{ id: string }>, res: Response, 
     const classroom = await ClassService.getClassById(classId);
 
     res.status(200).json({ success: true, message: "Lấy chi tiết lớp học thành công!", data: classroom });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi lấy chi tiết lớp học: " + (error.message || "Internal Server Error"),
+    });
   }
 };
 
@@ -86,8 +98,12 @@ export const updateClass = async (req: Request<{ id: string }>, res: Response, n
     const updatedClass = await ClassService.updateClass(teacherId, classId, updateData);
 
     res.status(200).json({ message: "Cập nhật lớp học thành công!", data: updatedClass });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi cập nhật lớp học: " + (error.message || "Internal Server Error"),
+    });
   }
 };
 
@@ -104,7 +120,11 @@ export const deleteClass = async (req: Request<{ id: string }>, res: Response, n
     await ClassService.deleteClass(teacherId, classId);
 
     res.status(200).json({ message: "Xóa lớp học thành công!" });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi xóa lớp học: " + (error.message || "Internal Server Error"),
+    });
   }
 };
