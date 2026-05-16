@@ -81,3 +81,20 @@ export const findStudentsByClassId = async (classId: string) => {
     orderBy: { joinTime: "asc" },
   });
 };
+
+// Lấy danh sách lớp học mà học sinh đã tham gia
+export const findJoinedClassesByStudentId = async (studentId: string) => {
+  return prisma.classEnrollments.findMany({
+    where: { studentId },
+    include: {
+      Classes: {
+        include: {
+          _count: {
+            select: { ClassEnrollments: true } // Lấy sĩ số lớp
+          }
+        }
+      },
+    },
+    orderBy: { joinTime: "desc" },
+  });
+};

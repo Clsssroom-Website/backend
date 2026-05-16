@@ -131,3 +131,16 @@ export const getClassStudents = async (classId: string) => {
     student: enrollment.Users,
   }));
 };
+
+export const getJoinedClassesByStudentId = async (studentId: string) => {
+  const enrollments = await ClassRepo.findJoinedClassesByStudentId(studentId);
+  return enrollments.map((enrollment) => {
+    const classData = enrollment.Classes as any;
+    return {
+      ...classData,
+      totalStudents: classData._count?.ClassEnrollments || 0,
+      joinTime: enrollment.joinTime,
+      enrollmentStatus: enrollment.status,
+    };
+  });
+};
