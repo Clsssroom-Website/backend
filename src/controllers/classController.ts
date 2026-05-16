@@ -2,19 +2,22 @@ import { Request, Response, NextFunction } from "express";
 import * as ClassService from "../services/class.service.js";
 import { UnauthorizedError, ForbiddenError, BadRequestError } from "../errors/index.js";
 
-// GET /api/v1/classes - API lấy danh sách lớp học theo teacherId
+// GET /api/v1/classes - API lấy danh sách lớp học theo teacherId hoặc studentId
 export const getAllClasses = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userPayload = (req as any).user;
     if (!userPayload || !userPayload.userId) {
       throw new UnauthorizedError("Vui lòng đăng nhập.");
     }
-    if (userPayload.role !== "teacher") {
-      throw new ForbiddenError("Chỉ có Giáo viên mới được phép xem danh sách này.");
-    }
 
-    const teacherId = userPayload.userId;
-    const classes = await ClassService.getAllClassesByTeacherId(teacherId);
+    let classes;
+    if (userPayload.role === "teacher") {
+      classes = await ClassService.getAllClassesByTeacherId(userPayload.userId);
+    } else if (userPayload.role === "student") {
+      classes = await ClassService.getJoinedClassesByStudentId(userPayload.userId);
+    } else {
+      throw new ForbiddenError("Role không hợp lệ.");
+    }
 
     res.status(200).json({ success: true, message: "Lấy danh sách lớp học thành công!", data: classes });
   } catch (error) {
