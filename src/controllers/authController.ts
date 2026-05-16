@@ -53,3 +53,14 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     res.status(401).json({ success: false, message: "Đăng nhập thất bại. Email hoặc mật khẩu không đúng." });
   }
 };
+
+// POST /api/v1/auth/logout
+export const logout = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.status(200).json({ success: true, message: "Đăng xuất thành công!" });
+  } catch (err) {
+    console.log("Error in logout controller:", err);
+    res.status(500).json({ success: false, message: "Đăng xuất thất bại." });
+  }
+};
+

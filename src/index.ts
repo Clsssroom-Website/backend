@@ -14,7 +14,7 @@ dotenv.config();
 const app = express();
 
 // ─── CORS: allow credentials from the frontend origin ───────────────────────
-const allowedOrigin = process.env.FRONTEND_URL ?? "http://localhost:3000";
+const allowedOrigin = process.env.FRONTEND_URL ?? "http://localhost:5173";
 app.use(
   cors({
     origin: allowedOrigin,
