@@ -38,7 +38,7 @@
     "dev": "tsx watch server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"

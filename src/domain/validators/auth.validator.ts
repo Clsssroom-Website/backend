@@ -5,7 +5,7 @@ export const RegisterSchema = z.object({
   email: z.string().email("Email không hợp lệ"),
   password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
   role: z.enum(["student", "teacher"], {
-    errorMap: () => ({ message: "Role không hợp lệ" }),
+    message: "Role không hợp lệ",
   }),
 });
 

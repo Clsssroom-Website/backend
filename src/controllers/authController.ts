@@ -1,37 +1,21 @@
 import { type Request, type Response, type NextFunction } from "express";
 import * as AuthService from "../services/auth.service.js";
-import { RegisterSchema, LoginSchema } from "../domain/validators/auth.validator.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 
 // POST /api/v1/auth/register
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = RegisterSchema.parse(req.body);
-
-    const result = await AuthService.register(data);
-
-    // Set Refresh Token as HttpOnly cookie
-    res.cookie("refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    const result = await AuthService.register(req.body);
 
     res.status(201).json({
       success: true,
       message: "Đăng ký thành công!",
       data: {
-        accessToken: result.accessToken,
         user: result.user,
       },
     });
   } catch (err: any) {
-    if (err.name === "ZodError") {
-      res.status(400).json({ success: false, message: err.errors[0].message });
-      return;
-    }
     console.error("Error in register controller:", err);
     const statusCode = err.statusCode || 500;
     const message = err.message || "Đăng ký thất bại. Vui lòng thử lại sau.";
@@ -42,9 +26,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 // POST /api/v1/auth/login
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = LoginSchema.parse(req.body);
-
-    const result = await AuthService.login(data);
+    const result = await AuthService.login(req.body);
 
     // Set Refresh Token as HttpOnly cookie
     res.cookie("refreshToken", result.refreshToken, {
@@ -63,10 +45,6 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       },
     });
   } catch (err: any) {
-    if (err.name === "ZodError") {
-      res.status(400).json({ success: false, message: err.errors[0].message });
-      return;
-    }
     console.error("Error in login controller:", err);
     const statusCode = err.statusCode || 500;
     const message = err.message || "Đăng nhập thất bại. Vui lòng thử lại sau.";

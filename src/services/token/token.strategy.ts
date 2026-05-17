@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "classroom_secret_key";
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET ?? "classroom_refresh_secret_key";
-const JWT_EXPIRES_IN = "15m";
+const JWT_EXPIRES_IN = "1m";
 const REFRESH_TOKEN_EXPIRES_IN = "7d";
 
 export interface TokenPayload {

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { UnauthorizedError } from "../errors/index.js";
-import { TokenStrategy, TokenPayload } from "../services/strategies/token.strategy.js";
+import { TokenStrategy, TokenPayload } from "../services/token/token.strategy.js";
 
 const tokenStrategy = new TokenStrategy();
 
@@ -20,9 +20,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     if (!token) {
       throw new UnauthorizedError("Token không được cung cấp.");
     }
-
     const decoded = tokenStrategy.verifyAccessToken(token);
-
     req.user = decoded;
 
     next();

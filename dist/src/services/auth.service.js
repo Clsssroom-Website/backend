@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import * as UserRepo from "../repositories/user.repo.js";
 import * as SessionRepo from "../repositories/session.repo.js";
-import { HashStrategy } from "./strategies/hash.strategy.js";
-import { TokenStrategy } from "./strategies/token.strategy.js";
+import { HashStrategy } from "./token/hash.strategy.js";
+import { TokenStrategy } from "./token/token.strategy.js";
 const hashStrategy = new HashStrategy();
 const tokenStrategy = new TokenStrategy();
 // TTL for refresh token in Redis (7 days in seconds)
@@ -23,12 +23,7 @@ export const register = async (data) => {
         passwordHash,
         role: data.role,
     });
-    const accessToken = tokenStrategy.generateAccessToken({ userId: newUser.userId, role: newUser.role });
-    const refreshToken = tokenStrategy.generateRefreshToken({ userId: newUser.userId });
-    await SessionRepo.saveRefreshToken(newUser.userId, refreshToken, REFRESH_TOKEN_TTL);
     return {
-        accessToken,
-        refreshToken,
         user: {
             userId: newUser.userId,
             name: newUser.name,

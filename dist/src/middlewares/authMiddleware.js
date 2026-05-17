@@ -1,5 +1,5 @@
 import { UnauthorizedError } from "../errors/index.js";
-import { TokenStrategy } from "../services/strategies/token.strategy.js";
+import { TokenStrategy } from "../services/token/token.strategy.js";
 const tokenStrategy = new TokenStrategy();
 export const authMiddleware = (req, res, next) => {
     try {
