@@ -1,5 +1,6 @@
 ﻿import { Router } from "express";
 import { createClass, updateClass, deleteClass, getAllClasses, getClassById, getClassStudents, getClassStream } from "../controllers/classController.js";
+import { getAssignments, createAssignment, updateAssignment, deleteAssignment, deleteAttachment } from "../controllers/assignmentController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 
 const router = Router();
@@ -25,5 +26,21 @@ router.put("/:id", authMiddleware, updateClass);
 
 // DELETE /api/v1/classes/:id - API xóa lớp học
 router.delete("/:id", authMiddleware, deleteClass);
+
+// ─── Assignment routes (Teacher) ──────────────────────────────────────────────
+// GET  /api/v1/classes/:id/assignments
+router.get("/:id/assignments", authMiddleware, getAssignments);
+
+// POST /api/v1/classes/:id/assignments
+router.post("/:id/assignments", authMiddleware, createAssignment);
+
+// PUT  /api/v1/classes/:id/assignments/:assignmentId
+router.put("/:id/assignments/:assignmentId", authMiddleware, updateAssignment);
+
+// DELETE /api/v1/classes/:id/assignments/:assignmentId
+router.delete("/:id/assignments/:assignmentId", authMiddleware, deleteAssignment);
+
+// DELETE /api/v1/classes/:id/assignments/:assignmentId/attachments/:attachmentId
+router.delete("/:id/assignments/:assignmentId/attachments/:attachmentId", authMiddleware, deleteAttachment);
 
 export default router;
