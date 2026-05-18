@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { DocumentService } from "../services/documentService.js";
+import { DocumentService } from "../services/document.service.js";
 import { uploadDocumentSchema } from "../validators/document.validator.js";
 import { ValidationError, BadRequestError } from "../errors/index.js";
 import { AuthRequest } from "../middlewares/authMiddleware.js";
@@ -56,7 +56,7 @@ export class DocumentController {
       }
 
       const userId = req.user!.userId;
-      
+
       const documents = await documentService.getDocumentsByClassId(userId, classId);
 
       res.status(200).json({

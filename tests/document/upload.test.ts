@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DocumentService } from "../../src/services/documentService.js";
+import { DocumentService } from "../../src/services/document.service.js";
 import { ForbiddenError, NotFoundError, BadRequestError } from "../../src/errors/index.js";
 import prisma from "../../src/config/prisma.js";
 
