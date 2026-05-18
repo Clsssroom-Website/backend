@@ -55,4 +55,17 @@ export class DocumentRepository {
       },
     });
   }
+
+  /**
+   * Retrieves all documents for a specific class, ordered by upload time descending
+   */
+  public async getDocumentsByClassId(classId: string) {
+    return await prisma.documents.findMany({
+      where: { classId },
+      include: {
+        DocumentAttachments: true,
+      },
+      orderBy: { uploadTime: 'desc' },
+    });
+  }
 }

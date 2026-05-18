@@ -14,4 +14,10 @@ router.post(
   documentController.upload
 );
 
+router.get(
+  "/class/:classId",
+  authMiddleware,
+  documentController.getDocumentsByClassId
+);
+
 export default router;

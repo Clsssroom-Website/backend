@@ -47,6 +47,26 @@ export class DocumentController {
       next(error);
     }
   }
+
+  public async getDocumentsByClassId(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const classId = req.params.classId as string;
+      if (!classId) {
+        throw new BadRequestError("classId là bắt buộc trong URL.");
+      }
+
+      const userId = req.user!.userId;
+      
+      const documents = await documentService.getDocumentsByClassId(userId, classId);
+
+      res.status(200).json({
+        success: true,
+        data: documents,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const documentController = new DocumentController();

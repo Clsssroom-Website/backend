@@ -67,4 +67,36 @@ export class DocumentService {
 
     return serializedDocument;
   }
+
+  public async getDocumentsByClassId(userId: string, classId: string) {
+    // 1. Verify class and permission (Teacher or enrolled Student)
+    const classRecord = await prisma.classes.findUnique({
+      where: { classId },
+      include: {
+        ClassEnrollments: {
+          where: { studentId: userId, status: "JOINED" }
+        }
+      }
+    });
+
+    if (!classRecord) {
+      throw new NotFoundError("Lớp học không tồn tại.");
+    }
+
+    if (classRecord.teacherId !== userId && classRecord.ClassEnrollments.length === 0) {
+      throw new ForbiddenError("Bạn không có quyền xem tài liệu của lớp học này.");
+    }
+
+    // 2. Fetch documents
+    const documents = await this.documentRepo.getDocumentsByClassId(classId);
+
+    // 3. Serialize BigInt
+    return documents.map(doc => ({
+      ...doc,
+      DocumentAttachments: doc.DocumentAttachments.map(att => ({
+        ...att,
+        fileSize: att.fileSize ? att.fileSize.toString() : null,
+      }))
+    }));
+  }
 }
