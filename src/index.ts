@@ -9,7 +9,7 @@ import authRoutes from "./routes/authRoutes.js";
 import classRoutes from "./routes/classRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
-import uploadRoutes from "./routes/uploadRoutes.js";
+import assignmentRoutes from "./routes/assigmentRoutes.js";
 import { logger } from "./utils/logger.js";
 import path from "path";
 
@@ -57,7 +57,7 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/classes", classRoutes);
 app.use("/api/v1/students", studentRoutes);
 app.use("/api/v1/documents", documentRoutes);
-app.use("/api/v1/upload", uploadRoutes);
+app.use("/api/v1/classes", assignmentRoutes);
 
 // Mount notFoundHandler after all route registrations
 app.use(notFoundHandler);

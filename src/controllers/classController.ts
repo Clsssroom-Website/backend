@@ -10,11 +10,13 @@ export const getAllClasses = async (req: Request, res: Response, next: NextFunct
       throw new UnauthorizedError("Vui lòng đăng nhập.");
     }
 
+    const searchQuery = req.query.search ? String(req.query.search) : undefined;
+
     let classes;
     if (userPayload.role === "teacher") {
-      classes = await ClassService.getAllClassesByTeacherId(userPayload.userId);
+      classes = await ClassService.getAllClassesByTeacherId(userPayload.userId, searchQuery);
     } else if (userPayload.role === "student") {
-      classes = await ClassService.getJoinedClassesByStudentId(userPayload.userId);
+      classes = await ClassService.getJoinedClassesByStudentId(userPayload.userId, searchQuery);
     } else {
       throw new ForbiddenError("Role không hợp lệ.");
     }
