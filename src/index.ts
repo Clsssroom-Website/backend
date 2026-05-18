@@ -8,6 +8,7 @@ import userRoutes from "./routes/userRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import classRoutes from "./routes/classRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
+import documentRoutes from "./routes/documentRoutes.js";
 import { logger } from "./utils/logger.js";
 
 dotenv.config();
@@ -50,6 +51,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/classes", classRoutes);
 app.use("/api/v1/students", studentRoutes);
+app.use("/api/v1/documents", documentRoutes);
 
 // Mount notFoundHandler after all route registrations
 app.use(notFoundHandler);
