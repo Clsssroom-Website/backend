@@ -99,4 +99,36 @@ export class DocumentService {
       }))
     }));
   }
+
+  public async getDownloadUrl(userId: string, documentId: string, action?: string): Promise<string> {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundError("Tài liệu không tồn tại.");
+    }
+
+    const classRecord = await prisma.classes.findUnique({
+      where: { classId: document.classId },
+      include: {
+        ClassEnrollments: {
+          where: { studentId: userId, status: "JOINED" }
+        }
+      }
+    });
+
+    if (!classRecord) {
+      throw new NotFoundError("Lớp học không tồn tại.");
+    }
+
+    if (classRecord.teacherId !== userId && classRecord.ClassEnrollments.length === 0) {
+      throw new ForbiddenError("Bạn không có quyền tải tài liệu này.");
+    }
+
+    const attachment = document.DocumentAttachments[0];
+    if (!attachment) {
+      throw new NotFoundError("Tài liệu không có file đính kèm.");
+    }
+
+    const forceDownload = action === "download";
+    return await this.storageService.getPresignedUrl(attachment.fileUri, forceDownload, attachment.fileName || undefined);
+  }
 }

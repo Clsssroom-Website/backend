@@ -7,6 +7,7 @@ dotenv.config();
 
 export interface IStorageService {
   uploadFile(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<{ url: string; size: number }>;
+  getPresignedUrl(fileUrl: string, forceDownload?: boolean, fileName?: string): Promise<string>;
 }
 
 export class MinioStorageService implements IStorageService {
@@ -61,8 +62,18 @@ export class MinioStorageService implements IStorageService {
     }
   }
 
-  public async getPresignedUrl(fileUrl: string): Promise<string> {
+  public async getPresignedUrl(fileUrl: string, forceDownload: boolean = false, fileName?: string): Promise<string> {
     const objectName = fileUrl.split("/").slice(1).join("/");
-    return await this.client.presignedGetObject(this.bucketName, objectName, 24 * 60 * 60);
+    
+    let reqParams = {};
+    if (forceDownload) {
+      const name = fileName || "download";
+      // Bắt buộc trình duyệt tải xuống thay vì hiển thị
+      reqParams = {
+        "response-content-disposition": `attachment; filename="${name}"`
+      };
+    }
+    
+    return await this.client.presignedGetObject(this.bucketName, objectName, 24 * 60 * 60, reqParams);
   }
 }

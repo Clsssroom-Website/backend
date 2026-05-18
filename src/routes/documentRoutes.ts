@@ -17,7 +17,15 @@ router.post(
 router.get(
   "/class/:classId",
   authMiddleware,
+  // Cả HỌC SINH và GIÁO VIÊN đều được xem (logic kiểm tra ở Service)
   documentController.getDocumentsByClassId
+);
+
+// Route để lấy URL tải file
+router.get(
+  "/:documentId/download",
+  authMiddleware,
+  documentController.getDownloadUrl
 );
 
 export default router;

@@ -67,6 +67,27 @@ export class DocumentController {
       next(error);
     }
   }
+
+  public async getDownloadUrl(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const documentId = req.params.documentId as string;
+      if (!documentId) {
+        throw new BadRequestError("documentId là bắt buộc trong URL.");
+      }
+
+      const userId = req.user!.userId;
+      const action = req.query.action as string | undefined;
+      
+      const downloadUrl = await documentService.getDownloadUrl(userId, documentId, action);
+
+      res.status(200).json({
+        success: true,
+        data: downloadUrl,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const documentController = new DocumentController();
