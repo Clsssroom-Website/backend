@@ -103,3 +103,20 @@ export const findJoinedClassesByStudentId = async (studentId: string) => {
     orderBy: { joinTime: "desc" },
   });
 };
+
+// Lấy bảng tin lớp học
+export const findAssignmentsByClassId = async (classId: string) => {
+  return prisma.assignments.findMany({
+    where: { classId },
+    orderBy: { createdAt: "desc" },
+  });
+};
+
+// Lấy bảng tin lớp học
+export const findDocumentsByClassId = async (classId: string) => {
+  return prisma.documents.findMany({
+    where: { classId },
+    orderBy: { uploadTime: "desc" },
+  });
+};
+

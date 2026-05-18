@@ -157,3 +157,43 @@ export const getJoinedClassesByStudentId = async (studentId: string) => {
     };
   });
 };
+
+export const getClassStream = async (classId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  const assignments = await ClassRepo.findAssignmentsByClassId(classId);
+  const documents = await ClassRepo.findDocumentsByClassId(classId);
+
+  const stream = [
+    ...assignments.map(a => ({
+      id: a.assignmentId,
+      type: "assignment",
+      title: a.title,
+      description: a.description,
+      createdAt: a.createdAt,
+      deadline: a.deadline,
+      status: a.status
+    })),
+    ...documents.map(d => ({
+      id: d.documentId,
+      type: "document",
+      title: d.title,
+      description: d.description,
+      createdAt: d.uploadTime,
+      uploadTime: d.uploadTime
+    }))
+  ];
+
+  // Sort by timeline descending
+  stream.sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return stream;
+};
+

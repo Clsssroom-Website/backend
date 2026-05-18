@@ -84,6 +84,26 @@ export const getClassById = async (req: Request<{ id: string }>, res: Response, 
   }
 };
 
+// GET /api/v1/classes/:id/stream - API lấy bảng tin lớp học (Bài tập và Tài liệu)
+export const getClassStream = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userPayload = (req as any).user;
+    if (!userPayload || !userPayload.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
+
+    const classId = req.params.id as string;
+    const stream = await ClassService.getClassStream(classId);
+
+    res.status(200).json({ success: true, message: "Lấy bảng tin lớp học thành công!", data: stream });
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi lấy bảng tin lớp học: " + (error.message || "Internal Server Error"),
+    });
+  }
+};
+
+
 // PUT /api/v1/classes/:id - API cập nhật lớp học
 export const updateClass = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
   try {
