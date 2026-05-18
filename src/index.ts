@@ -10,6 +10,7 @@ import classRoutes from "./routes/classRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 import { logger } from "./utils/logger.js";
 import path from "path";
 
@@ -58,6 +59,7 @@ app.use("/api/v1/classes", classRoutes);
 app.use("/api/v1/students", studentRoutes);
 app.use("/api/v1/documents", documentRoutes);
 app.use("/api/v1/upload", uploadRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
 
 // Mount notFoundHandler after all route registrations
 app.use(notFoundHandler);
