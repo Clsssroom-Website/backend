@@ -9,7 +9,7 @@ const router = Router();
 router.post(
   "/upload",
   authMiddleware,
-  requireRole(["TEACHER"]),
+  requireRole(["teacher"]),
   uploadDocumentMiddleware,
   documentController.upload
 );
