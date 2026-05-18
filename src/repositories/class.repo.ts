@@ -4,6 +4,11 @@ import prisma from "../config/prisma.js";
 export const findAllClassesByTeacherId = async (teacherId: string) => {
   return prisma.classes.findMany({
     where: { teacherId },
+    include: {
+      _count: {
+        select: { ClassEnrollments: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 };

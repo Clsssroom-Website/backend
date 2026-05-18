@@ -13,7 +13,12 @@ const generateJoinCode = (length = 6): string => {
 
 // Lấy danh sách lớp học theo teacherId
 export const getAllClassesByTeacherId = async (teacherId: string) => {
-  return ClassRepo.findAllClassesByTeacherId(teacherId);
+  const classes = await ClassRepo.findAllClassesByTeacherId(teacherId);
+  return classes.map((cls: any) => ({
+    ...cls,
+    totalStudents: cls._count?.ClassEnrollments ?? 0,
+    _count: undefined,
+  }));
 };
 
 export const createClass = async (
