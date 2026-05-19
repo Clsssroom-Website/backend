@@ -41,7 +41,6 @@ export const uploadDocumentMiddleware = (req, res, next) => {
         else if (err) {
             return next(err); // Bắt lỗi từ fileFilter (ví dụ: sai định dạng)
         }
-        // Sửa lỗi font tiếng Việt cho tên file upload (multer dùng latin1 thay vì utf8)
         if (req.file) {
             req.file.originalname = Buffer.from(req.file.originalname, "latin1").toString("utf8");
         }
@@ -66,11 +65,31 @@ export const uploadMultipleMiddleware = (req, res, next) => {
         else if (err) {
             return next(err);
         }
-        // Sửa lỗi font tiếng Việt cho tên file upload (multer dùng latin1 thay vì utf8)
         if (req.files && Array.isArray(req.files)) {
             req.files.forEach((file) => {
                 file.originalname = Buffer.from(file.originalname, "latin1").toString("utf8");
             });
+        }
+        next();
+    });
+};
+/**
+ * Middleware xử lý upload nhiều files tài liệu (dùng cho documents)
+ */
+export const uploadMultipleDocumentsMiddleware = (req, res, next) => {
+    const uploadHandler = upload.array("files", 10); // Tối đa 10 file
+    uploadHandler(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            if (err.code === "LIMIT_FILE_SIZE") {
+                return next(new BadRequestError("Một trong các tệp vượt quá kích thước 25MB."));
+            }
+            if (err.code === "LIMIT_UNEXPECTED_FILE") {
+                return next(new BadRequestError("Vượt quá số lượng tệp tối đa (10)."));
+            }
+            return next(new BadRequestError(`Lỗi tải tệp: ${err.message}`));
+        }
+        else if (err) {
+            return next(err);
         }
         next();
     });

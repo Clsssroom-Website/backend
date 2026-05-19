@@ -101,6 +101,12 @@ export const findAssignmentsByClassId = async (classId) => {
     return prisma.assignments.findMany({
         where: { classId },
         orderBy: { createdAt: "desc" },
+        include: {
+            AssignmentAttachments: true,
+            _count: {
+                select: { Submissions: true },
+            },
+        },
     });
 };
 // Lấy bảng tin lớp học
@@ -108,5 +114,8 @@ export const findDocumentsByClassId = async (classId) => {
     return prisma.documents.findMany({
         where: { classId },
         orderBy: { uploadTime: "desc" },
+        include: {
+            DocumentAttachments: true,
+        },
     });
 };

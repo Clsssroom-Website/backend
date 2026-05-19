@@ -2,11 +2,10 @@ import prisma from "../config/prisma.js";
 import { v4 as uuidv4 } from "uuid";
 export class DocumentRepository {
     /**
-     * Creates a Document and its associated DocumentAttachment in a transaction
+     * Creates a Document and its associated DocumentAttachments in a transaction
      */
-    async createDocumentWithAttachment(data) {
+    async createDocumentWithAttachments(data) {
         const documentId = uuidv4();
-        const attachmentId = uuidv4();
         return await prisma.$transaction(async (tx) => {
             const document = await tx.documents.create({
                 data: {
@@ -15,12 +14,12 @@ export class DocumentRepository {
                     title: data.title,
                     description: data.description,
                     DocumentAttachments: {
-                        create: {
-                            attachmentId,
-                            fileName: data.attachment.fileName,
-                            fileUri: data.attachment.fileUri,
-                            fileSize: BigInt(data.attachment.fileSize),
-                        },
+                        create: data.attachments.map((att) => ({
+                            attachmentId: uuidv4(),
+                            fileName: att.fileName,
+                            fileUri: att.fileUri,
+                            fileSize: BigInt(att.fileSize),
+                        })),
                     },
                 },
                 include: {
@@ -51,6 +50,49 @@ export class DocumentRepository {
                 DocumentAttachments: true,
             },
             orderBy: { uploadTime: 'desc' },
+        });
+    }
+    /**
+     * Updates basic document info
+     */
+    async updateDocument(documentId, data) {
+        return prisma.documents.update({
+            where: { documentId },
+            data,
+            include: {
+                DocumentAttachments: true,
+            },
+        });
+    }
+    /**
+     * Delete all attachments for a document
+     */
+    async deleteAllAttachments(documentId) {
+        return prisma.documentAttachments.deleteMany({
+            where: { documentId },
+        });
+    }
+    /**
+     * Create new attachments for a document
+     */
+    async createAttachments(documentId, attachments) {
+        const data = attachments.map((a) => ({
+            attachmentId: uuidv4(),
+            documentId,
+            fileName: a.fileName,
+            fileUri: a.fileUri,
+            fileSize: BigInt(a.fileSize),
+        }));
+        return prisma.documentAttachments.createMany({
+            data,
+        });
+    }
+    /**
+     * Deletes a document
+     */
+    async deleteDocument(documentId) {
+        return prisma.documents.delete({
+            where: { documentId },
         });
     }
 }

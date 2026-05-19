@@ -12,13 +12,13 @@ export class DocumentController {
             }
             const { classId, title, description } = parsed.data.body;
             // 2. Check file existence
-            const file = req.file;
-            if (!file) {
-                throw new BadRequestError("Vui lòng đính kèm một tệp tài liệu.");
+            const files = req.files;
+            if (!files || files.length === 0) {
+                throw new BadRequestError("Vui lòng đính kèm ít nhất một tệp tài liệu.");
             }
             const userId = req.user.userId;
             // 3. Call Service
-            const document = await documentService.uploadDocument(userId, classId, title, description, file.buffer, file.originalname, file.mimetype, file.size);
+            const document = await documentService.uploadDocument(userId, classId, title, description, files);
             res.status(201).json({
                 success: true,
                 message: "Tải tài liệu lên thành công.",
@@ -46,18 +46,67 @@ export class DocumentController {
             next(error);
         }
     }
-    async getDownloadUrl(req, res, next) {
+    async getAttachmentDownloadUrl(req, res, next) {
+        try {
+            const attachmentId = req.params.attachmentId;
+            if (!attachmentId) {
+                throw new BadRequestError("attachmentId là bắt buộc trong URL.");
+            }
+            const userId = req.user.userId;
+            const action = req.query.action;
+            const downloadUrl = await documentService.getAttachmentDownloadUrl(userId, attachmentId, action);
+            res.status(200).json({
+                success: true,
+                data: downloadUrl,
+            });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    async update(req, res, next) {
+        try {
+            const documentId = req.params.documentId;
+            if (!documentId) {
+                throw new BadRequestError("documentId là bắt buộc trong URL.");
+            }
+            const { title, description } = req.body;
+            let keepAttachmentIds;
+            if (req.body.keepAttachmentIds !== undefined) {
+                keepAttachmentIds =
+                    typeof req.body.keepAttachmentIds === "string"
+                        ? JSON.parse(req.body.keepAttachmentIds)
+                        : req.body.keepAttachmentIds;
+            }
+            const files = req.files;
+            const userId = req.user.userId;
+            const document = await documentService.updateDocument(userId, documentId, {
+                title,
+                description,
+                keepAttachmentIds,
+                files,
+            });
+            res.status(200).json({
+                success: true,
+                message: "Cập nhật tài liệu thành công.",
+                data: document,
+            });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    async delete(req, res, next) {
         try {
             const documentId = req.params.documentId;
             if (!documentId) {
                 throw new BadRequestError("documentId là bắt buộc trong URL.");
             }
             const userId = req.user.userId;
-            const action = req.query.action;
-            const downloadUrl = await documentService.getDownloadUrl(userId, documentId, action);
+            await documentService.deleteDocument(userId, documentId);
             res.status(200).json({
                 success: true,
-                data: downloadUrl,
+                message: "Xóa tài liệu thành công.",
             });
         }
         catch (error) {

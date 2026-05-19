@@ -130,6 +130,12 @@ export const findAssignmentsByClassId = async (classId: string) => {
   return prisma.assignments.findMany({
     where: { classId },
     orderBy: { createdAt: "desc" },
+    include: {
+      AssignmentAttachments: true,
+      _count: {
+        select: { Submissions: true },
+      },
+    },
   });
 };
 
@@ -138,6 +144,9 @@ export const findDocumentsByClassId = async (classId: string) => {
   return prisma.documents.findMany({
     where: { classId },
     orderBy: { uploadTime: "desc" },
+    include: {
+      DocumentAttachments: true,
+    },
   });
 };
 

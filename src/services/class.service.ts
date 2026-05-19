@@ -1,6 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
 import * as ClassRepo from "../repositories/class.repo.js";
 import { NotFoundError, ForbiddenError, BadRequestError } from "../errors/index.js";
+import { MinioStorageService } from "./storage/minioStorage.js";
+
+const storageServiceAssignments = new MinioStorageService("classroom-assignments");
+const storageServiceDocuments = new MinioStorageService("classroom-documents");
 
 const generateJoinCode = (length = 6): string => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -183,27 +187,84 @@ export const getClassStream = async (classId: string) => {
     throw new NotFoundError("Không tìm thấy lớp học.");
   }
 
+  // ─── Lấy kèm fileUrls và biến đổi thành URL ───────────────────
   const assignments = await ClassRepo.findAssignmentsByClassId(classId);
   const documents = await ClassRepo.findDocumentsByClassId(classId);
 
+  // Serialize Assignments
+  const processedAssignments = await Promise.all(
+    assignments.map(async (a: any) => {
+      let attachments = [];
+      if (a.AssignmentAttachments?.length > 0) {
+        attachments = await Promise.all(
+          a.AssignmentAttachments.map(async (att: any) => {
+            let presignedUrl = att.fileUrl;
+            try {
+              presignedUrl = await storageServiceAssignments.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
+            } catch (err) {
+              console.warn("Could not generate presigned URL for", att.fileUrl);
+            }
+            return {
+              ...att,
+              fileSize: att.fileSize != null ? att.fileSize.toString() : null,
+              fileUrl: presignedUrl,
+            };
+          })
+        );
+      }
+      return {
+        id: a.assignmentId,
+        assignmentId: a.assignmentId,
+        type: "assignment",
+        title: a.title,
+        description: a.description,
+        createdAt: a.createdAt,
+        deadline: a.deadline,
+        status: a.status,
+        typeAssignment: a.typeAssignment,
+        AssignmentAttachments: attachments,
+        totalSubmissions: a._count?.Submissions ?? 0
+      };
+    })
+  );
+
+  // Serialize Documents
+  const processedDocuments = await Promise.all(
+    documents.map(async (d: any) => {
+      let attachments = [];
+      if (d.DocumentAttachments?.length > 0) {
+        attachments = await Promise.all(
+          d.DocumentAttachments.map(async (att: any) => {
+            let presignedUrl = att.fileUri;
+            try {
+              presignedUrl = await storageServiceDocuments.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+            } catch (err) {
+              console.warn("Could not generate presigned URL for", att.fileUri);
+            }
+            return {
+              ...att,
+              fileSize: att.fileSize != null ? att.fileSize.toString() : null,
+              fileUrl: presignedUrl, // Normalize to fileUrl like Assignment
+            };
+          })
+        );
+      }
+      return {
+        id: d.documentId,
+        documentId: d.documentId,
+        type: "document",
+        title: d.title,
+        description: d.description,
+        createdAt: d.uploadTime,
+        uploadTime: d.uploadTime,
+        DocumentAttachments: attachments
+      };
+    })
+  );
+
   const stream = [
-    ...assignments.map(a => ({
-      id: a.assignmentId,
-      type: "assignment",
-      title: a.title,
-      description: a.description,
-      createdAt: a.createdAt,
-      deadline: a.deadline,
-      status: a.status
-    })),
-    ...documents.map(d => ({
-      id: d.documentId,
-      type: "document",
-      title: d.title,
-      description: d.description,
-      createdAt: d.uploadTime,
-      uploadTime: d.uploadTime
-    }))
+    ...processedAssignments,
+    ...processedDocuments
   ];
 
   // Sort by timeline descending
