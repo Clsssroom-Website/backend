@@ -117,4 +117,68 @@ export class AssignmentRepository {
   public async deleteAllAttachments(assignmentId: string) {
     return prisma.assignmentAttachments.deleteMany({ where: { assignmentId } });
   }
+
+  /**
+   * Lấy danh sách bài nộp của bài tập
+   */
+  public async findSubmissionsByAssignmentId(assignmentId: string) {
+    return prisma.submissions.findMany({
+      where: { assignmentId },
+      include: {
+        Users: {
+          select: {
+            userId: true,
+            name: true,
+            email: true,
+          },
+        },
+        SubmissionAttachments: true,
+        Grades: true,
+      },
+      orderBy: { submittedAt: "desc" },
+    });
+  }
+
+  /**
+   * Tạo hoặc cập nhật điểm số cho bài nộp
+   */
+  public async upsertGrade(payload: {
+    submissionId: string;
+    studentId: string;
+    classId: string;
+    assignmentId: string;
+    score: number;
+    comment?: string;
+  }) {
+    const { submissionId, studentId, classId, assignmentId, score, comment } = payload;
+    
+    // Tìm xem đã có Grade nào cho submissionId chưa
+    const existingGrade = await prisma.grades.findFirst({
+      where: { submissionId }
+    });
+
+    if (existingGrade) {
+      return prisma.grades.update({
+        where: { gradeId: existingGrade.gradeId },
+        data: {
+          score,
+          comment,
+          gradedAt: new Date()
+        }
+      });
+    } else {
+      return prisma.grades.create({
+        data: {
+          gradeId: uuidv4(),
+          submissionId,
+          studentId,
+          classId,
+          assignmentId,
+          score,
+          comment,
+          gradedAt: new Date()
+        }
+      });
+    }
+  }
 }

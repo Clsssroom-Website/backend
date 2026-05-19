@@ -149,6 +149,57 @@ export class AssignmentController {
       next(error);
     }
   }
+
+  /**
+   * GET /api/v1/classes/:id/assignments/:assignmentId/submissions
+   * Teacher lấy danh sách bài nộp của học sinh
+   */
+  public async getSubmissions(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const assignmentId = req.params.assignmentId as string;
+
+      const submissions = await assignmentService.getSubmissionsByAssignmentId(teacherId, assignmentId);
+      res.status(200).json({
+        success: true,
+        message: "Lấy danh sách bài nộp thành công!",
+        data: submissions,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/v1/classes/:id/assignments/:assignmentId/submissions/:submissionId/grade
+   * Teacher chấm điểm bài nộp
+   */
+  public async gradeSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const assignmentId = req.params.assignmentId as string;
+      const submissionId = req.params.submissionId as string;
+      const { score, comment } = req.body;
+
+      const parsedScore = parseFloat(score);
+      if (isNaN(parsedScore) || parsedScore < 0 || parsedScore > 10) {
+        res.status(400).json({ success: false, message: "Điểm số phải từ 0 đến 10." });
+        return;
+      }
+
+      await assignmentService.gradeSubmission(teacherId, assignmentId, submissionId, {
+        score: parsedScore,
+        comment,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Chấm điểm thành công!",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const assignmentController = new AssignmentController();

@@ -43,4 +43,20 @@ router.delete(
   assignmentController.deleteAttachment.bind(assignmentController)
 );
 
+// GET /api/v1/classes/:id/assignments/:assignmentId/submissions
+router.get(
+  "/:id/assignments/:assignmentId/submissions",
+  authMiddleware,
+  requireRole(["teacher"]),
+  assignmentController.getSubmissions.bind(assignmentController)
+);
+
+// POST /api/v1/classes/:id/assignments/:assignmentId/submissions/:submissionId/grade
+router.post(
+  "/:id/assignments/:assignmentId/submissions/:submissionId/grade",
+  authMiddleware,
+  requireRole(["teacher"]),
+  assignmentController.gradeSubmission.bind(assignmentController)
+);
+
 export default router;

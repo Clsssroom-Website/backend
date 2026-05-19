@@ -301,6 +301,111 @@ export class AssignmentService {
     await this.assignmentRepo.deleteAllAttachments(assignmentId);
     return this.assignmentRepo.deleteAssignment(assignmentId);
   }
+
+  /**
+   * Lấy danh sách bài nộp của bài tập (chỉ dành cho giáo viên)
+   */
+  public async getSubmissionsByAssignmentId(teacherId: string, assignmentId: string) {
+    // 1. Kiểm tra giáo viên sở hữu bài tập
+    await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
+
+    // 2. Lấy danh sách bài nộp từ repo
+    const submissions = await this.assignmentRepo.findSubmissionsByAssignmentId(assignmentId);
+
+    // 3. Tạo instance MinioStorageService cho submissions để sinh presigned URL
+    const submissionStorageService = new MinioStorageService("classroom-submissions");
+
+    // 4. Map và serialize dữ liệu (BigInt to string cho fileSize, sinh presignedUrl cho attachments)
+    const serializedSubmissions = await Promise.all(
+      submissions.map(async (sub: any) => {
+        const processedAttachments = await Promise.all(
+          sub.SubmissionAttachments.map(async (att: any) => {
+            let presignedUrl = att.fileUri;
+            try {
+              presignedUrl = await submissionStorageService.getPresignedUrl(
+                att.fileUri,
+                false,
+                att.fileName || "download"
+              );
+            } catch (err) {
+              console.warn("Could not generate presigned URL for submission file:", att.fileUri);
+            }
+            return {
+              attachmentId: att.attachmentId,
+              submissionId: att.submissionId,
+              fileName: att.fileName,
+              fileUrl: presignedUrl,
+              fileSize: att.fileSize != null ? att.fileSize.toString() : null,
+              uploadedAt: att.uploadedAt,
+            };
+          })
+        );
+
+        return {
+          submissionId: sub.submissionId,
+          assignmentId: sub.assignmentId,
+          studentId: sub.studentId,
+          submittedAt: sub.submittedAt,
+          status: sub.status,
+          student: sub.Users
+            ? {
+                userId: sub.Users.userId,
+                name: sub.Users.name,
+                email: sub.Users.email,
+              }
+            : null,
+          SubmissionAttachments: processedAttachments,
+          grade:
+            sub.Grades && sub.Grades.length > 0
+              ? {
+                  gradeId: sub.Grades[0].gradeId,
+                  score: sub.Grades[0].score,
+                  comment: sub.Grades[0].comment,
+                  gradedAt: sub.Grades[0].gradedAt,
+                }
+              : null,
+        };
+      })
+    );
+
+    return serializedSubmissions;
+  }
+
+  /**
+   * Chấm điểm cho bài nộp của học sinh (chỉ dành cho giáo viên)
+   */
+  public async gradeSubmission(
+    teacherId: string,
+    assignmentId: string,
+    submissionId: string,
+    payload: { score: number; comment?: string }
+  ) {
+    // 1. Kiểm tra giáo viên sở hữu bài tập
+    const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
+
+    // 2. Tìm bài nộp
+    const submission = await prisma.submissions.findUnique({
+      where: { submissionId },
+    });
+
+    if (!submission) {
+      throw new NotFoundError("Không tìm thấy bài nộp.");
+    }
+
+    if (submission.assignmentId !== assignmentId) {
+      throw new BadRequestError("Bài nộp không thuộc bài tập này.");
+    }
+
+    // 3. Thực hiện chấm điểm
+    return this.assignmentRepo.upsertGrade({
+      submissionId,
+      studentId: submission.studentId,
+      classId: assignment.classId,
+      assignmentId,
+      score: payload.score,
+      comment: payload.comment,
+    });
+  }
 }
 
 export const assignmentService = new AssignmentService();
