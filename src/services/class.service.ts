@@ -199,8 +199,10 @@ export const getClassStream = async (classId: string) => {
         attachments = await Promise.all(
           a.AssignmentAttachments.map(async (att: any) => {
             let presignedUrl = att.fileUrl;
+            let downloadUrl = att.fileUrl;
             try {
               presignedUrl = await storageServiceAssignments.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
+              downloadUrl = await storageServiceAssignments.getPresignedUrl(att.fileUrl, true, att.fileName || "download");
             } catch (err) {
               console.warn("Could not generate presigned URL for", att.fileUrl);
             }
@@ -208,6 +210,7 @@ export const getClassStream = async (classId: string) => {
               ...att,
               fileSize: att.fileSize != null ? att.fileSize.toString() : null,
               fileUrl: presignedUrl,
+              downloadUrl: downloadUrl,
             };
           })
         );
@@ -236,8 +239,10 @@ export const getClassStream = async (classId: string) => {
         attachments = await Promise.all(
           d.DocumentAttachments.map(async (att: any) => {
             let presignedUrl = att.fileUri;
+            let downloadUrl = att.fileUri;
             try {
               presignedUrl = await storageServiceDocuments.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+              downloadUrl = await storageServiceDocuments.getPresignedUrl(att.fileUri, true, att.fileName || "download");
             } catch (err) {
               console.warn("Could not generate presigned URL for", att.fileUri);
             }
@@ -245,6 +250,7 @@ export const getClassStream = async (classId: string) => {
               ...att,
               fileSize: att.fileSize != null ? att.fileSize.toString() : null,
               fileUrl: presignedUrl, // Normalize to fileUrl like Assignment
+              downloadUrl: downloadUrl,
             };
           })
         );

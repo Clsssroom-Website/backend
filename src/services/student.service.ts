@@ -48,8 +48,10 @@ export const getAssignmentsForStudent = async (studentId: string, classId: strin
         processedAttachments = await Promise.all(
           assignment.AssignmentAttachments.map(async (att: any) => {
             let presignedUrl = att.fileUrl;
+            let downloadUrl = att.fileUrl;
             try {
               presignedUrl = await storageService.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
+              downloadUrl = await storageService.getPresignedUrl(att.fileUrl, true, att.fileName || "download");
             } catch (err) {
               console.warn("Could not generate presigned URL for", att.fileUrl);
             }
@@ -57,6 +59,7 @@ export const getAssignmentsForStudent = async (studentId: string, classId: strin
               ...att,
               fileSize: att.fileSize != null ? att.fileSize.toString() : null,
               fileUrl: presignedUrl, // Dùng presigned URL
+              downloadUrl: downloadUrl,
             };
           })
         );
@@ -122,8 +125,10 @@ export const submitAssignment = async (
   const attachmentsWithUrls = await Promise.all(
     newSubmission.SubmissionAttachments.map(async (att) => {
       let presignedUrl = att.fileUri;
+      let downloadUrl = att.fileUri;
       try {
         presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+        downloadUrl = await submissionStorageService.getPresignedUrl(att.fileUri, true, att.fileName || "download");
       } catch (err) {
         console.error("Lỗi khi tạo presigned URL cho bài nộp mới:", err);
       }
@@ -131,6 +136,7 @@ export const submitAssignment = async (
         ...att,
         fileSize: att.fileSize ? att.fileSize.toString() : null,
         fileUrl: presignedUrl,
+        downloadUrl: downloadUrl,
       };
     })
   );
@@ -161,8 +167,10 @@ export const getSubmissionAndGrade = async (studentId: string, assignmentId: str
   const attachmentsWithUrls = await Promise.all(
     submission.SubmissionAttachments.map(async (att) => {
       let presignedUrl = att.fileUri;
+      let downloadUrl = att.fileUri;
       try {
         presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+        downloadUrl = await submissionStorageService.getPresignedUrl(att.fileUri, true, att.fileName || "download");
       } catch (err) {
         console.error("Lỗi khi tạo presigned URL cho bài nộp:", err);
       }
@@ -170,6 +178,7 @@ export const getSubmissionAndGrade = async (studentId: string, assignmentId: str
         ...att,
         fileSize: att.fileSize ? att.fileSize.toString() : null,
         fileUrl: presignedUrl,
+        downloadUrl: downloadUrl,
       };
     })
   );
