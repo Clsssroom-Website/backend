@@ -14,8 +14,8 @@ export class MinioStorageService implements IStorageService {
   private client: Client;
   private bucketName: string;
 
-  constructor() {
-    this.bucketName = process.env.MINIO_BUCKET_NAME || "classroom-documents";
+  constructor(bucketName?: string) {
+    this.bucketName = bucketName || process.env.MINIO_BUCKET_NAME || "classroom-documents";
     this.client = new Client({
       endPoint: process.env.MINIO_ENDPOINT || "127.0.0.1",
       port: parseInt(process.env.MINIO_PORT || "9000", 10),
@@ -80,13 +80,14 @@ export class MinioStorageService implements IStorageService {
   public async getPresignedUrl(fileUrl: string, forceDownload: boolean = false, fileName?: string): Promise<string> {
     const objectName = fileUrl.split("/").slice(1).join("/");
     
-    let reqParams = {};
+    let reqParams: any = {};
+    const name = fileName || "download";
     if (forceDownload) {
-      const name = fileName || "download";
       // Bắt buộc trình duyệt tải xuống thay vì hiển thị
-      reqParams = {
-        "response-content-disposition": `attachment; filename="${name}"`
-      };
+      reqParams["response-content-disposition"] = `attachment; filename="${name}"`;
+    } else {
+      // Bắt buộc trình duyệt xem trực tiếp (inline)
+      reqParams["response-content-disposition"] = `inline; filename="${name}"`;
     }
     
     return await this.client.presignedGetObject(this.bucketName, objectName, 24 * 60 * 60, reqParams);

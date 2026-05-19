@@ -145,6 +145,25 @@ export const getClassStudents = async (classId: string) => {
   }));
 };
 
+export const removeStudentFromClass = async (teacherId: string, classId: string, studentId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  if (existingClass.teacherId !== teacherId) {
+    throw new ForbiddenError("Bạn không có quyền thao tác trên lớp học này.");
+  }
+
+  const enrollment = await ClassRepo.checkEnrollmentExists(classId, studentId);
+  if (!enrollment) {
+    throw new NotFoundError("Học sinh này không có trong lớp.");
+  }
+
+  await ClassRepo.deleteEnrollment(classId, studentId);
+  return { success: true };
+};
+
 export const getJoinedClassesByStudentId = async (studentId: string, searchQuery?: string) => {
   const enrollments = await ClassRepo.findJoinedClassesByStudentId(studentId, searchQuery);
   return enrollments.map((enrollment) => {

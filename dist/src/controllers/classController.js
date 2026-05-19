@@ -7,12 +7,13 @@ export const getAllClasses = async (req, res, next) => {
         if (!userPayload || !userPayload.userId) {
             throw new UnauthorizedError("Vui lòng đăng nhập.");
         }
+        const searchQuery = req.query.search ? String(req.query.search) : undefined;
         let classes;
         if (userPayload.role === "teacher") {
-            classes = await ClassService.getAllClassesByTeacherId(userPayload.userId);
+            classes = await ClassService.getAllClassesByTeacherId(userPayload.userId, searchQuery);
         }
         else if (userPayload.role === "student") {
-            classes = await ClassService.getJoinedClassesByStudentId(userPayload.userId);
+            classes = await ClassService.getJoinedClassesByStudentId(userPayload.userId, searchQuery);
         }
         else {
             throw new ForbiddenError("Role không hợp lệ.");
@@ -20,7 +21,11 @@ export const getAllClasses = async (req, res, next) => {
         res.status(200).json({ success: true, message: "Lấy danh sách lớp học thành công!", data: classes });
     }
     catch (error) {
-        next(error);
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi lấy danh sách lớp học: " + (error.message || "Internal Server Error"),
+        });
     }
 };
 // POST /api/v1/classes - API tạo lớp học
@@ -47,7 +52,11 @@ export const createClass = async (req, res, next) => {
         res.status(201).json({ message: "Tạo lớp học thành công!", data: newClass });
     }
     catch (error) {
-        next(error);
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi tạo lớp học: " + (error.message || "Internal Server Error"),
+        });
     }
 };
 // GET /api/v1/classes/:id - API lấy chi tiết 1 lớp học
@@ -63,7 +72,29 @@ export const getClassById = async (req, res, next) => {
         res.status(200).json({ success: true, message: "Lấy chi tiết lớp học thành công!", data: classroom });
     }
     catch (error) {
-        next(error);
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi lấy chi tiết lớp học: " + (error.message || "Internal Server Error"),
+        });
+    }
+};
+// GET /api/v1/classes/:id/stream - API lấy bảng tin lớp học (Bài tập và Tài liệu)
+export const getClassStream = async (req, res, next) => {
+    try {
+        const userPayload = req.user;
+        if (!userPayload || !userPayload.userId)
+            throw new UnauthorizedError("Vui lòng đăng nhập.");
+        const classId = req.params.id;
+        const stream = await ClassService.getClassStream(classId);
+        res.status(200).json({ success: true, message: "Lấy bảng tin lớp học thành công!", data: stream });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi lấy bảng tin lớp học: " + (error.message || "Internal Server Error"),
+        });
     }
 };
 // PUT /api/v1/classes/:id - API cập nhật lớp học
@@ -81,7 +112,53 @@ export const updateClass = async (req, res, next) => {
         res.status(200).json({ message: "Cập nhật lớp học thành công!", data: updatedClass });
     }
     catch (error) {
-        next(error);
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi cập nhật lớp học: " + (error.message || "Internal Server Error"),
+        });
+    }
+};
+// GET /api/v1/classes/:id/students - API lấy danh sách học sinh của lớp học
+export const getClassStudents = async (req, res, next) => {
+    try {
+        const userPayload = req.user;
+        if (!userPayload || !userPayload.userId)
+            throw new UnauthorizedError("Vui lòng đăng nhập.");
+        if (userPayload.role !== "teacher")
+            throw new ForbiddenError("Chỉ có Giáo viên mới được xem danh sách học sinh.");
+        const classId = req.params.id;
+        const students = await ClassService.getClassStudents(classId);
+        res.status(200).json({ success: true, message: "Lấy danh sách học sinh thành công!", data: students });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi lấy danh sách học sinh: " + (error.message || "Internal Server Error"),
+        });
+    }
+};
+// DELETE /api/v1/classes/:id/students/:studentId - API xóa học sinh khỏi lớp
+export const removeStudentFromClass = async (req, res, next) => {
+    try {
+        const userPayload = req.user;
+        if (!userPayload || !userPayload.userId)
+            throw new UnauthorizedError("Vui lòng đăng nhập.");
+        if (userPayload.role !== "teacher")
+            throw new ForbiddenError("Chỉ có Giáo viên mới được phép thao tác.");
+        const teacherId = userPayload.userId;
+        const classId = req.params.id;
+        const studentId = req.params.studentId;
+        await ClassService.removeStudentFromClass(teacherId, classId, studentId);
+        res.status(200).json({ success: true, message: "Đã xóa học sinh khỏi lớp thành công!" });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi xóa học sinh khỏi lớp: " + (error.message || "Internal Server Error"),
+        });
     }
 };
 // DELETE /api/v1/classes/:id - API xóa lớp học
@@ -98,6 +175,10 @@ export const deleteClass = async (req, res, next) => {
         res.status(200).json({ message: "Xóa lớp học thành công!" });
     }
     catch (error) {
-        next(error);
+        console.log(error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: "Lỗi khi xóa lớp học: " + (error.message || "Internal Server Error"),
+        });
     }
 };

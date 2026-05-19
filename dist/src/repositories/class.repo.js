@@ -1,8 +1,17 @@
 import prisma from "../config/prisma.js";
 // Lấy danh sách lớp học theo teacherId
-export const findAllClassesByTeacherId = async (teacherId) => {
+export const findAllClassesByTeacherId = async (teacherId, searchQuery) => {
+    const whereClause = { teacherId };
+    if (searchQuery) {
+        whereClause.className = { contains: searchQuery }; // Search by exact/partial match
+    }
     return prisma.classes.findMany({
-        where: { teacherId },
+        where: whereClause,
+        include: {
+            _count: {
+                select: { ClassEnrollments: true },
+            },
+        },
         orderBy: { createdAt: "desc" },
     });
 };
@@ -37,6 +46,12 @@ export const checkEnrollmentExists = async (classId, studentId) => {
         where: { classId, studentId },
     });
 };
+// Xóa học sinh khỏi lớp
+export const deleteEnrollment = async (classId, studentId) => {
+    return prisma.classEnrollments.deleteMany({
+        where: { classId, studentId },
+    });
+};
 // Thêm học sinh vào lớp học
 export const createEnrollment = async (data) => {
     return prisma.classEnrollments.create({ data });
@@ -59,9 +74,16 @@ export const findStudentsByClassId = async (classId) => {
     });
 };
 // Lấy danh sách lớp học mà học sinh đã tham gia
-export const findJoinedClassesByStudentId = async (studentId) => {
+export const findJoinedClassesByStudentId = async (studentId, searchQuery) => {
+    const classWhereClause = {};
+    if (searchQuery) {
+        classWhereClause.className = { contains: searchQuery };
+    }
     return prisma.classEnrollments.findMany({
-        where: { studentId },
+        where: {
+            studentId,
+            ...(searchQuery ? { Classes: classWhereClause } : {})
+        },
         include: {
             Classes: {
                 include: {
@@ -72,5 +94,19 @@ export const findJoinedClassesByStudentId = async (studentId) => {
             },
         },
         orderBy: { joinTime: "desc" },
+    });
+};
+// Lấy bảng tin lớp học
+export const findAssignmentsByClassId = async (classId) => {
+    return prisma.assignments.findMany({
+        where: { classId },
+        orderBy: { createdAt: "desc" },
+    });
+};
+// Lấy bảng tin lớp học
+export const findDocumentsByClassId = async (classId) => {
+    return prisma.documents.findMany({
+        where: { classId },
+        orderBy: { uploadTime: "desc" },
     });
 };

@@ -45,6 +45,12 @@ export const uploadDocumentMiddleware = (req: Request, res: Response, next: Next
     } else if (err) {
       return next(err); // Bắt lỗi từ fileFilter (ví dụ: sai định dạng)
     }
+
+    // Sửa lỗi font tiếng Việt cho tên file upload (multer dùng latin1 thay vì utf8)
+    if (req.file) {
+      req.file.originalname = Buffer.from(req.file.originalname, "latin1").toString("utf8");
+    }
+
     next();
   });
 };
@@ -67,6 +73,14 @@ export const uploadMultipleMiddleware = (req: Request, res: Response, next: Next
     } else if (err) {
       return next(err);
     }
+
+    // Sửa lỗi font tiếng Việt cho tên file upload (multer dùng latin1 thay vì utf8)
+    if (req.files && Array.isArray(req.files)) {
+      req.files.forEach((file) => {
+        file.originalname = Buffer.from(file.originalname, "latin1").toString("utf8");
+      });
+    }
+
     next();
   });
 }; 
