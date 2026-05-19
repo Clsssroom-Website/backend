@@ -19,9 +19,9 @@ export class DocumentController {
       const { classId, title, description } = parsed.data.body;
 
       // 2. Check file existence
-      const file = req.file;
-      if (!file) {
-        throw new BadRequestError("Vui lòng đính kèm một tệp tài liệu.");
+      const files = req.files as Express.Multer.File[] | undefined;
+      if (!files || files.length === 0) {
+        throw new BadRequestError("Vui lòng đính kèm ít nhất một tệp tài liệu.");
       }
 
       const userId = req.user!.userId;
@@ -32,10 +32,7 @@ export class DocumentController {
         classId,
         title,
         description,
-        file.buffer,
-        file.originalname,
-        file.mimetype,
-        file.size
+        files
       );
 
       res.status(201).json({
@@ -68,7 +65,65 @@ export class DocumentController {
     }
   }
 
-  public async getDownloadUrl(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  public async getAttachmentDownloadUrl(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const attachmentId = req.params.attachmentId as string;
+      if (!attachmentId) {
+        throw new BadRequestError("attachmentId là bắt buộc trong URL.");
+      }
+
+      const userId = req.user!.userId;
+      const action = req.query.action as string | undefined;
+      
+      const downloadUrl = await documentService.getAttachmentDownloadUrl(userId, attachmentId, action);
+
+      res.status(200).json({
+        success: true,
+        data: downloadUrl,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const documentId = req.params.documentId as string;
+      if (!documentId) {
+        throw new BadRequestError("documentId là bắt buộc trong URL.");
+      }
+
+      const { title, description } = req.body;
+
+      let keepAttachmentIds: string[] | undefined;
+      if (req.body.keepAttachmentIds !== undefined) {
+        keepAttachmentIds =
+          typeof req.body.keepAttachmentIds === "string"
+            ? JSON.parse(req.body.keepAttachmentIds)
+            : req.body.keepAttachmentIds;
+      }
+
+      const files = req.files as Express.Multer.File[] | undefined;
+      const userId = req.user!.userId;
+
+      const document = await documentService.updateDocument(userId, documentId, {
+        title,
+        description,
+        keepAttachmentIds,
+        files,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Cập nhật tài liệu thành công.",
+        data: document,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async delete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const documentId = req.params.documentId as string;
       if (!documentId) {
@@ -76,13 +131,11 @@ export class DocumentController {
       }
 
       const userId = req.user!.userId;
-      const action = req.query.action as string | undefined;
-      
-      const downloadUrl = await documentService.getDownloadUrl(userId, documentId, action);
+      await documentService.deleteDocument(userId, documentId);
 
       res.status(200).json({
         success: true,
-        data: downloadUrl,
+        message: "Xóa tài liệu thành công.",
       });
     } catch (error) {
       next(error);

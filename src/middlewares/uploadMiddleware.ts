@@ -70,6 +70,27 @@ export const uploadMultipleMiddleware = (req: Request, res: Response, next: Next
     next();
   });
 }; 
+
+/**
+ * Middleware xử lý upload nhiều files tài liệu (dùng cho documents)
+ */
+export const uploadMultipleDocumentsMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const uploadHandler = upload.array("files", 10); // Tối đa 10 file
   
+  uploadHandler(req, res, (err: any) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return next(new BadRequestError("Một trong các tệp vượt quá kích thước 25MB."));
+      }
+      if (err.code === "LIMIT_UNEXPECTED_FILE") {
+        return next(new BadRequestError("Vượt quá số lượng tệp tối đa (10)."));
+      }
+      return next(new BadRequestError(`Lỗi tải tệp: ${err.message}`));
+    } else if (err) {
+      return next(err);
+    }
+    next();
+  });
+};
 
 

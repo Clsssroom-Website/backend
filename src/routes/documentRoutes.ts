@@ -2,7 +2,7 @@ import { Router } from "express";
 import { documentController } from "../controllers/documentController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { requireRole } from "../middlewares/roleMiddleware.js";
-import { uploadDocumentMiddleware } from "../middlewares/uploadMiddleware.js";
+import { uploadMultipleDocumentsMiddleware } from "../middlewares/uploadMiddleware.js";
 
 const router = Router();
 
@@ -10,7 +10,7 @@ router.post(
   "/upload",
   authMiddleware,
   requireRole(["teacher"]),
-  uploadDocumentMiddleware,
+  uploadMultipleDocumentsMiddleware,
   documentController.upload
 );
 
@@ -23,9 +23,26 @@ router.get(
 
 // Route để lấy URL tải file
 router.get(
-  "/:documentId/download",
+  "/attachment/:attachmentId/download",
   authMiddleware,
-  documentController.getDownloadUrl
+  documentController.getAttachmentDownloadUrl
+);
+
+// Route chỉnh sửa tài liệu
+router.put(
+  "/:documentId",
+  authMiddleware,
+  requireRole(["teacher"]),
+  uploadMultipleDocumentsMiddleware,
+  documentController.update
+);
+
+// Route xóa tài liệu
+router.delete(
+  "/:documentId",
+  authMiddleware,
+  requireRole(["teacher"]),
+  documentController.delete
 );
 
 export default router;
