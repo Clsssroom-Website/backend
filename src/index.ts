@@ -13,8 +13,12 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import assignmentRoutes from "./routes/assigmentRoutes.js";
 import { logger } from "./utils/logger.js";
 import path from "path";
+import { initAssignmentSubscriber } from "./subscribers/assignmentSubscriber.js";
 
 dotenv.config();
+
+// Khởi tạo các event subscribers
+initAssignmentSubscriber();
 
 const app = express();
 

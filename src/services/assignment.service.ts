@@ -2,6 +2,7 @@ import { AssignmentRepository } from "../repositories/assignment.repo.js";
 import { MinioStorageService, IStorageService } from "./storage/minioStorage.js";
 import { NotFoundError, ForbiddenError, BadRequestError } from "../errors/index.js";
 import prisma from "../config/prisma.js";
+import { eventBus } from "../events/eventBus.js";
 
 export class AssignmentService {
   private assignmentRepo: AssignmentRepository;
@@ -69,7 +70,7 @@ export class AssignmentService {
     // 1. Kiểm tra lớp tồn tại
     const classRecord = await prisma.classes.findUnique({
       where: { classId },
-      select: { teacherId: true },
+      select: { teacherId: true, className: true },
     });
     if (!classRecord) throw new NotFoundError("Không tìm thấy lớp học.");
 
@@ -89,6 +90,13 @@ export class AssignmentService {
       throw new BadRequestError("Hạn nộp không hợp lệ.");
     }
 
+    // Lấy tên giáo viên
+    const teacherRecord = await prisma.users.findUnique({
+      where: { userId: teacherId },
+      select: { name: true },
+    });
+    const teacherName = teacherRecord?.name || "Giáo viên";
+
     // 5. Tạo bài tập
     const assignment = await this.assignmentRepo.createAssignment({
       classId,
@@ -96,6 +104,17 @@ export class AssignmentService {
       description: data.description?.trim(),
       deadline: deadlineDate,
       typeAssignment: data.typeAssignment ?? "ESSAY",
+    });
+
+    // Phát sự kiện assignment.created
+    eventBus.emit("assignment.created", {
+      assignmentId: assignment.assignmentId,
+      classId,
+      title: assignment.title,
+      description: assignment.description,
+      deadline: assignment.deadline,
+      className: classRecord.className,
+      teacherName,
     });
 
     // 6. Upload files lên MinIO và tạo attachments
