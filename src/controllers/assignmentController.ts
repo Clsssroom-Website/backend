@@ -1,106 +1,154 @@
-import { Request, Response, NextFunction } from "express";
-import * as AssignmentService from "../services/assignment.service.js";
-import { UnauthorizedError, ForbiddenError } from "../errors/index.js";
+import { Response, NextFunction } from "express";
+import { AuthRequest } from "../middlewares/authMiddleware.js";
+import { AssignmentService } from "../services/assignment.service.js";
+import { BadRequestError, ForbiddenError, UnauthorizedError } from "../errors/index.js";
 
-const ensureTeacher = (req: Request): string => {
-  const userPayload = (req as any).user;
-  if (!userPayload || !userPayload.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
-  if (userPayload.role !== "teacher") throw new ForbiddenError("Chỉ Giáo viên mới được thực hiện hành động này.");
-  return userPayload.userId as string;
+const assignmentService = new AssignmentService();
+
+/**
+ * Helper: Lấy teacherId và xác thực role teacher
+ */
+const ensureTeacher = (req: AuthRequest): string => {
+  const user = req.user;
+  if (!user?.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
+  if (user.role !== "teacher") throw new ForbiddenError("Chỉ Giáo viên mới được thực hiện hành động này.");
+  return user.userId;
 };
 
-// GET /api/v1/classes/:id/assignments — Teacher lấy danh sách bài tập
-export const getAssignments = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  try {
-    const teacherId = ensureTeacher(req);
-    const assignments = await AssignmentService.getAssignmentsByClassId(teacherId, req.params.id);
-    res.status(200).json({ success: true, message: "Lấy danh sách bài tập thành công!", data: assignments });
-  } catch (error: any) {
-    console.error(error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message || "Internal Server Error" });
+export class AssignmentController {
+  /**
+   * GET /api/v1/classes/:id/assignments
+   * Teacher lấy danh sách bài tập của lớp
+   */
+  public async getAssignments(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const classId = req.params.id as string;
+
+      const assignments = await assignmentService.getAssignmentsByClassId(teacherId, classId);
+      res.status(200).json({
+        success: true,
+        message: "Lấy danh sách bài tập thành công!",
+        data: assignments,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-};
 
-// POST /api/v1/classes/:id/assignments — Teacher tạo bài tập
-export const createAssignment = async (
-  req: Request<{ id: string }>,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  try {
-    const teacherId = ensureTeacher(req);
-    const { title, description, deadline, typeAssignment, attachments } = req.body;
+  /**
+   * POST /api/v1/classes/:id/assignments
+   * Teacher tạo bài tập mới (có thể kèm file đính kèm)
+   */
+  public async createAssignment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const classId = req.params.id as string;
 
-    const assignment = await AssignmentService.createAssignment(teacherId, req.params.id, {
-      title,
-      description,
-      deadline,
-      typeAssignment,
-      attachments,
-    });
-    res.status(201).json({ success: true, message: "Tạo bài tập thành công!", data: assignment });
-  } catch (error: any) {
-    console.error(error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message || "Internal Server Error" });
+      const { title, description, deadline, typeAssignment } = req.body;
+
+      if (!title || String(title).trim() === "") {
+        throw new BadRequestError("Tiêu đề bài tập không được để trống.");
+      }
+      if (!deadline) {
+        throw new BadRequestError("Hạn nộp bài không được để trống.");
+      }
+
+      const files = req.files as Express.Multer.File[] | undefined;
+
+      const assignment = await assignmentService.createAssignment(teacherId, classId, {
+        title,
+        description,
+        deadline,
+        typeAssignment,
+        files,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Tạo bài tập thành công!",
+        data: assignment,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-};
 
-// PUT /api/v1/classes/:id/assignments/:assignmentId — Teacher chỉnh sửa bài tập
-export const updateAssignment = async (
-  req: Request<{ id: string; assignmentId: string }>,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  try {
-    const teacherId = ensureTeacher(req);
-    const { title, description, deadline, typeAssignment, attachments } = req.body;
+  /**
+   * PUT /api/v1/classes/:id/assignments/:assignmentId
+   * Teacher cập nhật bài tập
+   * Body: { title?, description?, deadline?, typeAssignment?, keepAttachmentIds?: string[] }
+   * Files: multipart/form-data với field "attachments"
+   */
+  public async updateAssignment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const assignmentId = req.params.assignmentId as string;
 
-    const updated = await AssignmentService.updateAssignment(teacherId, req.params.assignmentId, {
-      title,
-      description,
-      deadline,
-      typeAssignment,
-      attachments,
-    });
-    res.status(200).json({ success: true, message: "Cập nhật bài tập thành công!", data: updated });
-  } catch (error: any) {
-    console.error(error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message || "Internal Server Error" });
+      const { title, description, deadline, typeAssignment } = req.body;
+
+      // Danh sách attachment IDs muốn giữ lại (gửi từ frontend)
+      let keepAttachmentIds: string[] | undefined;
+      if (req.body.keepAttachmentIds !== undefined) {
+        keepAttachmentIds =
+          typeof req.body.keepAttachmentIds === "string"
+            ? JSON.parse(req.body.keepAttachmentIds)
+            : req.body.keepAttachmentIds;
+      }
+
+      const files = req.files as Express.Multer.File[] | undefined;
+
+      const updated = await assignmentService.updateAssignment(teacherId, assignmentId, {
+        title,
+        description,
+        deadline,
+        typeAssignment,
+        keepAttachmentIds,
+        files,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Cập nhật bài tập thành công!",
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-};
 
-// DELETE /api/v1/classes/:id/assignments/:assignmentId — Teacher xóa bài tập
-export const deleteAssignment = async (
-  req: Request<{ id: string; assignmentId: string }>,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  try {
-    const teacherId = ensureTeacher(req);
-    await AssignmentService.deleteAssignment(teacherId, req.params.assignmentId);
-    res.status(200).json({ success: true, message: "Xóa bài tập thành công!" });
-  } catch (error: any) {
-    console.error(error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message || "Internal Server Error" });
-  }
-};
+  /**
+   * DELETE /api/v1/classes/:id/assignments/:assignmentId
+   * Teacher xóa bài tập (kèm tất cả file trên MinIO)
+   */
+  public async deleteAssignment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const assignmentId = req.params.assignmentId as string;
 
-// DELETE /api/v1/classes/:id/assignments/:assignmentId/attachments/:attachmentId — Xóa 1 file đính kèm
-export const deleteAttachment = async (
-  req: Request<{ id: string; assignmentId: string; attachmentId: string }>,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  try {
-    const teacherId = ensureTeacher(req);
-    await AssignmentService.deleteAttachment(teacherId, req.params.assignmentId, req.params.attachmentId);
-    res.status(200).json({ success: true, message: "Xóa file đính kèm thành công!" });
-  } catch (error: any) {
-    console.error(error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message || "Internal Server Error" });
+      await assignmentService.deleteAssignment(teacherId, assignmentId);
+      res.status(200).json({ success: true, message: "Xóa bài tập thành công!" });
+    } catch (error) {
+      next(error);
+    }
   }
-};
+
+  /**
+   * DELETE /api/v1/classes/:id/assignments/:assignmentId/attachments/:attachmentId
+   * Teacher xóa một file đính kèm của bài tập (kèm file trên MinIO)
+   */
+  public async deleteAttachment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const assignmentId = req.params.assignmentId as string;
+      const attachmentId = req.params.attachmentId as string;
+
+      await assignmentService.deleteAttachment(teacherId, assignmentId, attachmentId);
+      res.status(200).json({ success: true, message: "Xóa file đính kèm thành công!" });
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export const assignmentController = new AssignmentController();

@@ -1,9 +1,15 @@
 import prisma from "../config/prisma.js";
 
 // Lấy danh sách lớp học theo teacherId
-export const findAllClassesByTeacherId = async (teacherId: string) => {
+export const findAllClassesByTeacherId = async (teacherId: string, searchQuery?: string) => {
+  const whereClause: any = { teacherId };
+
+  if (searchQuery) {
+    whereClause.className = { contains: searchQuery }; // Search by exact/partial match
+  }
+
   return prisma.classes.findMany({
-    where: { teacherId },
+    where: whereClause,
     include: {
       _count: {
         select: { ClassEnrollments: true },
@@ -88,9 +94,17 @@ export const findStudentsByClassId = async (classId: string) => {
 };
 
 // Lấy danh sách lớp học mà học sinh đã tham gia
-export const findJoinedClassesByStudentId = async (studentId: string) => {
+export const findJoinedClassesByStudentId = async (studentId: string, searchQuery?: string) => {
+  const classWhereClause: any = {};
+  if (searchQuery) {
+    classWhereClause.className = { contains: searchQuery };
+  }
+
   return prisma.classEnrollments.findMany({
-    where: { studentId },
+    where: { 
+      studentId,
+      ...(searchQuery ? { Classes: classWhereClause } : {})
+    },
     include: {
       Classes: {
         include: {

@@ -62,6 +62,21 @@ export class MinioStorageService implements IStorageService {
     }
   }
 
+ 
+  public async deleteFile(fileUrl: string): Promise<void> {
+    try {
+      // fileUrl có định dạng "classroom-documents/filename.ext" do uploadFile trả về
+      const parts = fileUrl.split("/");
+      const objectName = parts.slice(1).join("/"); // Lấy phần filename
+      if (objectName) {
+        await this.client.removeObject(this.bucketName, objectName);
+      }
+    } catch (error) {
+      console.error("MinIO delete error:", error);
+      // Không ném lỗi ra ngoài để tránh kẹt ứng dụng khi file không tồn tại
+    }
+  }
+
   public async getPresignedUrl(fileUrl: string, forceDownload: boolean = false, fileName?: string): Promise<string> {
     const objectName = fileUrl.split("/").slice(1).join("/");
     

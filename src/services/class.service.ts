@@ -12,8 +12,8 @@ const generateJoinCode = (length = 6): string => {
 };
 
 // Lấy danh sách lớp học theo teacherId
-export const getAllClassesByTeacherId = async (teacherId: string) => {
-  const classes = await ClassRepo.findAllClassesByTeacherId(teacherId);
+export const getAllClassesByTeacherId = async (teacherId: string, searchQuery?: string) => {
+  const classes = await ClassRepo.findAllClassesByTeacherId(teacherId, searchQuery);
   return classes.map((cls: any) => ({
     ...cls,
     totalStudents: cls._count?.ClassEnrollments ?? 0,
@@ -145,8 +145,8 @@ export const getClassStudents = async (classId: string) => {
   }));
 };
 
-export const getJoinedClassesByStudentId = async (studentId: string) => {
-  const enrollments = await ClassRepo.findJoinedClassesByStudentId(studentId);
+export const getJoinedClassesByStudentId = async (studentId: string, searchQuery?: string) => {
+  const enrollments = await ClassRepo.findJoinedClassesByStudentId(studentId, searchQuery);
   return enrollments.map((enrollment) => {
     const classData = enrollment.Classes as any;
     return {
