@@ -77,8 +77,11 @@ export const createSubmission = async (
     // Lưu file đính kèm (nếu có)
     if (attachments && attachments.length > 0) {
       const attachmentsData = attachments.map((file) => ({
-        ...file,
+        attachmentId: file.attachmentId,
         submissionId: submissionData.submissionId,
+        fileName: file.fileName,
+        fileUri: file.fileUri,
+        fileSize: file.fileSize ? BigInt(file.fileSize) : null,
       }));
       await tx.submissionAttachments.createMany({
         data: attachmentsData,
