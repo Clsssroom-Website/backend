@@ -5,6 +5,7 @@ import { NotFoundError, ForbiddenError, BadRequestError } from "../errors/index.
 import { MinioStorageService } from "./storage/minioStorage.js";
 
 const storageService = new MinioStorageService("classroom-assignments");
+const submissionStorageService = new MinioStorageService("classroom-submissions");
 
 // Helper kiểm tra học sinh có nằm trong lớp học không
 const ensureStudentEnrolled = async (studentId: string, classId: string) => {
@@ -114,7 +115,30 @@ export const submitAssignment = async (
     attachments
   );
 
-  return newSubmission;
+  if (!newSubmission) {
+    throw new BadRequestError("Không thể tạo bài nộp.");
+  }
+
+  const attachmentsWithUrls = await Promise.all(
+    newSubmission.SubmissionAttachments.map(async (att) => {
+      let presignedUrl = att.fileUri;
+      try {
+        presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+      } catch (err) {
+        console.error("Lỗi khi tạo presigned URL cho bài nộp mới:", err);
+      }
+      return {
+        ...att,
+        fileSize: att.fileSize ? att.fileSize.toString() : null,
+        fileUrl: presignedUrl,
+      };
+    })
+  );
+
+  return {
+    ...newSubmission,
+    SubmissionAttachments: attachmentsWithUrls,
+  };
 };
 
 // Lấy thông tin bài nộp và điểm
@@ -134,5 +158,24 @@ export const getSubmissionAndGrade = async (studentId: string, assignmentId: str
     return null; // Chưa nộp bài
   }
 
-  return submission;
+  const attachmentsWithUrls = await Promise.all(
+    submission.SubmissionAttachments.map(async (att) => {
+      let presignedUrl = att.fileUri;
+      try {
+        presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+      } catch (err) {
+        console.error("Lỗi khi tạo presigned URL cho bài nộp:", err);
+      }
+      return {
+        ...att,
+        fileSize: att.fileSize ? att.fileSize.toString() : null,
+        fileUrl: presignedUrl,
+      };
+    })
+  );
+
+  return {
+    ...submission,
+    SubmissionAttachments: attachmentsWithUrls,
+  };
 };

@@ -8,7 +8,7 @@ import {
   getSubmissionAndGrade,
 } from "../controllers/studentController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
-
+import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
 const router = Router();
 
 // POST /api/v1/students/classes/join - Học sinh tham gia lớp học
@@ -24,7 +24,7 @@ router.get("/classes/:classId", authMiddleware, getClassDetails);
 router.get("/classes/:classId/assignments", authMiddleware, getAssignments);
 
 // POST /api/v1/students/assignments/:assignmentId/submit - Nộp bài tập
-router.post("/assignments/:assignmentId/submit", authMiddleware, submitAssignment);
+router.post("/assignments/:assignmentId/submit", authMiddleware, uploadMultipleMiddleware, submitAssignment);
 
 // GET /api/v1/students/assignments/:assignmentId/submission - Xem bài nộp và điểm
 router.get("/assignments/:assignmentId/submission", authMiddleware, getSubmissionAndGrade);

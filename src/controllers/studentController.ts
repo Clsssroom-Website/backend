@@ -109,10 +109,22 @@ export const submitAssignment = async (req: Request<{ assignmentId: string }>, r
   try {
     const studentId = ensureStudentRole(req);
     const { assignmentId } = req.params;
-    const { files } = req.body; // Mảng các file { fileName, fileUri, fileSize }
+    const files = req.files as Express.Multer.File[];
+    const attachments: { fileName: string; fileUri: string; fileSize: number }[] = [];
 
-    // Nếu không có mảng files, giả định học sinh chỉ bấm nộp mà không có file đính kèm (hoặc báo lỗi tuỳ nghiệp vụ)
-    const attachments = Array.isArray(files) ? files : [];
+    const { MinioStorageService } = await import("../services/storage/minioStorage.js");
+    const storageService = new MinioStorageService("classroom-submissions");
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const result = await storageService.uploadFile(file.buffer, file.originalname, file.mimetype);
+        attachments.push({
+          fileName: file.originalname,
+          fileUri: result.url,
+          fileSize: result.size,
+        });
+      }
+    }
 
     const submission = await StudentService.submitAssignment(studentId, assignmentId, attachments);
 
