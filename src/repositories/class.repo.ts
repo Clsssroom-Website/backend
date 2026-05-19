@@ -66,6 +66,13 @@ export const checkEnrollmentExists = async (classId: string, studentId: string) 
   });
 };
 
+// Xóa học sinh khỏi lớp
+export const deleteEnrollment = async (classId: string, studentId: string) => {
+  return prisma.classEnrollments.deleteMany({
+    where: { classId, studentId },
+  });
+};
+
 // Thêm học sinh vào lớp học
 export const createEnrollment = async (data: {
   enrollmentId: string;

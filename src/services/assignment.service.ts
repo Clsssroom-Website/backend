@@ -9,7 +9,7 @@ export class AssignmentService {
 
   constructor() {
     this.assignmentRepo = new AssignmentRepository();
-    this.storageService = new MinioStorageService();
+    this.storageService = new MinioStorageService("classroom-assignments");
   }
 
   // ─── Helper: kiểm tra teacher có quyền trên bài tập ──────────────────────────
@@ -23,15 +23,32 @@ export class AssignmentService {
     return assignment;
   }
 
-  // ─── Helper: serialize BigInt trong attachments ───────────────────────────────
-  private serializeAttachments(assignment: any) {
+  // ─── Helper: serialize BigInt trong attachments và map URL ───────────────────
+  private async serializeAttachments(assignment: any) {
     if (!assignment) return assignment;
+    
+    let processedAttachments = [];
+    if (assignment.AssignmentAttachments && assignment.AssignmentAttachments.length > 0) {
+      processedAttachments = await Promise.all(
+        assignment.AssignmentAttachments.map(async (att: any) => {
+          let presignedUrl = att.fileUrl;
+          try {
+            presignedUrl = await this.storageService.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
+          } catch (err) {
+            console.warn("Could not generate presigned URL for", att.fileUrl);
+          }
+          return {
+            ...att,
+            fileSize: att.fileSize != null ? att.fileSize.toString() : null,
+            fileUrl: presignedUrl, // Thay fileUrl bằng link tải để FE click tải được
+          };
+        })
+      );
+    }
+
     return {
       ...assignment,
-      AssignmentAttachments: (assignment.AssignmentAttachments ?? []).map((att: any) => ({
-        ...att,
-        fileSize: att.fileSize != null ? att.fileSize.toString() : null,
-      })),
+      AssignmentAttachments: processedAttachments,
     };
   }
 
@@ -106,7 +123,7 @@ export class AssignmentService {
 
     // 7. Fetch lại để trả về đầy đủ kèm attachments
     const created = await this.assignmentRepo.findAssignmentById(assignment.assignmentId);
-    return this.serializeAttachments(created);
+    return await this.serializeAttachments(created);
   }
 
   /**
@@ -123,11 +140,17 @@ export class AssignmentService {
     }
 
     const assignments = await this.assignmentRepo.findAssignmentsByClassId(classId);
-    return assignments.map((a: any) => ({
-      ...this.serializeAttachments(a),
-      totalSubmissions: a._count?.Submissions ?? 0,
-      _count: undefined,
-    }));
+    const serializedAssignments = await Promise.all(
+      assignments.map(async (a: any) => {
+        const serialized = await this.serializeAttachments(a);
+        return {
+          ...serialized,
+          totalSubmissions: a._count?.Submissions ?? 0,
+          _count: undefined,
+        };
+      })
+    );
+    return serializedAssignments;
   }
 
   /**
@@ -222,7 +245,7 @@ export class AssignmentService {
     }
 
     const updated = await this.assignmentRepo.findAssignmentById(assignmentId);
-    return this.serializeAttachments(updated);
+    return await this.serializeAttachments(updated);
   }
 
   /**

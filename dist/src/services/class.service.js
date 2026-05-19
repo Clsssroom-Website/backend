@@ -10,8 +10,13 @@ const generateJoinCode = (length = 6) => {
     return result;
 };
 // Lấy danh sách lớp học theo teacherId
-export const getAllClassesByTeacherId = async (teacherId) => {
-    return ClassRepo.findAllClassesByTeacherId(teacherId);
+export const getAllClassesByTeacherId = async (teacherId, searchQuery) => {
+    const classes = await ClassRepo.findAllClassesByTeacherId(teacherId, searchQuery);
+    return classes.map((cls) => ({
+        ...cls,
+        totalStudents: cls._count?.ClassEnrollments ?? 0,
+        _count: undefined,
+    }));
 };
 export const createClass = async (teacherId, data) => {
     let joinCode = generateJoinCode();
@@ -101,8 +106,23 @@ export const getClassStudents = async (classId) => {
         student: enrollment.Users,
     }));
 };
-export const getJoinedClassesByStudentId = async (studentId) => {
-    const enrollments = await ClassRepo.findJoinedClassesByStudentId(studentId);
+export const removeStudentFromClass = async (teacherId, classId, studentId) => {
+    const existingClass = await ClassRepo.findClassById(classId);
+    if (!existingClass) {
+        throw new NotFoundError("Không tìm thấy lớp học.");
+    }
+    if (existingClass.teacherId !== teacherId) {
+        throw new ForbiddenError("Bạn không có quyền thao tác trên lớp học này.");
+    }
+    const enrollment = await ClassRepo.checkEnrollmentExists(classId, studentId);
+    if (!enrollment) {
+        throw new NotFoundError("Học sinh này không có trong lớp.");
+    }
+    await ClassRepo.deleteEnrollment(classId, studentId);
+    return { success: true };
+};
+export const getJoinedClassesByStudentId = async (studentId, searchQuery) => {
+    const enrollments = await ClassRepo.findJoinedClassesByStudentId(studentId, searchQuery);
     return enrollments.map((enrollment) => {
         const classData = enrollment.Classes;
         return {
@@ -112,4 +132,38 @@ export const getJoinedClassesByStudentId = async (studentId) => {
             enrollmentStatus: enrollment.status,
         };
     });
+};
+export const getClassStream = async (classId) => {
+    const existingClass = await ClassRepo.findClassById(classId);
+    if (!existingClass) {
+        throw new NotFoundError("Không tìm thấy lớp học.");
+    }
+    const assignments = await ClassRepo.findAssignmentsByClassId(classId);
+    const documents = await ClassRepo.findDocumentsByClassId(classId);
+    const stream = [
+        ...assignments.map(a => ({
+            id: a.assignmentId,
+            type: "assignment",
+            title: a.title,
+            description: a.description,
+            createdAt: a.createdAt,
+            deadline: a.deadline,
+            status: a.status
+        })),
+        ...documents.map(d => ({
+            id: d.documentId,
+            type: "document",
+            title: d.title,
+            description: d.description,
+            createdAt: d.uploadTime,
+            uploadTime: d.uploadTime
+        }))
+    ];
+    // Sort by timeline descending
+    stream.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+    });
+    return stream;
 };

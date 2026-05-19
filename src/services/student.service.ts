@@ -2,6 +2,9 @@ import { v4 as uuidv4 } from "uuid";
 import * as StudentRepo from "../repositories/student.repo.js";
 import * as ClassRepo from "../repositories/class.repo.js";
 import { NotFoundError, ForbiddenError, BadRequestError } from "../errors/index.js";
+import { MinioStorageService } from "./storage/minioStorage.js";
+
+const storageService = new MinioStorageService("classroom-assignments");
 
 // Helper kiểm tra học sinh có nằm trong lớp học không
 const ensureStudentEnrolled = async (studentId: string, classId: string) => {
@@ -34,7 +37,37 @@ export const getAssignmentsForStudent = async (studentId: string, classId: strin
 
   await ensureStudentEnrolled(studentId, classId);
 
-  return StudentRepo.findAssignmentsByClassId(classId);
+  const assignments = await StudentRepo.findAssignmentsByClassId(classId);
+
+  // Parse fileUrl to presignedUrl for assignment attachments
+  const serializedAssignments = await Promise.all(
+    assignments.map(async (assignment: any) => {
+      let processedAttachments = [];
+      if (assignment.AssignmentAttachments && assignment.AssignmentAttachments.length > 0) {
+        processedAttachments = await Promise.all(
+          assignment.AssignmentAttachments.map(async (att: any) => {
+            let presignedUrl = att.fileUrl;
+            try {
+              presignedUrl = await storageService.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
+            } catch (err) {
+              console.warn("Could not generate presigned URL for", att.fileUrl);
+            }
+            return {
+              ...att,
+              fileSize: att.fileSize != null ? att.fileSize.toString() : null,
+              fileUrl: presignedUrl, // Dùng presigned URL
+            };
+          })
+        );
+      }
+      return {
+        ...assignment,
+        AssignmentAttachments: processedAttachments,
+      };
+    })
+  );
+
+  return serializedAssignments;
 };
 
 // Nộp bài tập

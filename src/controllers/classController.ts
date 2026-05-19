@@ -149,6 +149,29 @@ export const getClassStudents = async (req: Request<{ id: string }>, res: Respon
   }
 };
 
+// DELETE /api/v1/classes/:id/students/:studentId - API xóa học sinh khỏi lớp
+export const removeStudentFromClass = async (req: Request<{ id: string; studentId: string }>, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userPayload = (req as any).user;
+    if (!userPayload || !userPayload.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
+    if (userPayload.role !== "teacher") throw new ForbiddenError("Chỉ có Giáo viên mới được phép thao tác.");
+
+    const teacherId = userPayload.userId;
+    const classId = req.params.id as string;
+    const studentId = req.params.studentId as string;
+
+    await ClassService.removeStudentFromClass(teacherId, classId, studentId);
+
+    res.status(200).json({ success: true, message: "Đã xóa học sinh khỏi lớp thành công!" });
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi xóa học sinh khỏi lớp: " + (error.message || "Internal Server Error"),
+    });
+  }
+};
+
 // DELETE /api/v1/classes/:id - API xóa lớp học
 export const deleteClass = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
   try {
