@@ -11,6 +11,7 @@ import studentRoutes from "./routes/studentRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import assignmentRoutes from "./routes/assigmentRoutes.js";
+import publicRoutes from "./routes/publicRoutes.js";
 import { logger } from "./utils/logger.js";
 import path from "path";
 import { initAssignmentSubscriber } from "./subscribers/assignmentSubscriber.js";
@@ -64,6 +65,7 @@ app.use("/api/v1/students", studentRoutes);
 app.use("/api/v1/documents", documentRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/classes", assignmentRoutes);
+app.use("/api/v1/public", publicRoutes);
 
 // Mount notFoundHandler after all route registrations
 app.use(notFoundHandler);

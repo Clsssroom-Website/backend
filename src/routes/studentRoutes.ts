@@ -5,6 +5,7 @@ import {
   getClassDetails,
   getAssignments,
   submitAssignment,
+  submitQuizAssignment,
   getSubmissionAndGrade,
   getDashboard,
   getGrades,
@@ -32,8 +33,11 @@ router.get("/classes/:classId/grades", authMiddleware, getGrades);
 router.get("/classes/:classId/assignments", authMiddleware, getAssignments);
 
 
-// POST /api/v1/students/assignments/:assignmentId/submit - Nộp bài tập
+// POST /api/v1/students/assignments/:assignmentId/submit - Nộp bài tập (file upload)
 router.post("/assignments/:assignmentId/submit", authMiddleware, uploadMultipleMiddleware, submitAssignment);
+
+// POST /api/v1/students/assignments/:assignmentId/submit-quiz - Nộp bài trắc nghiệm (JSON, không có file)
+router.post("/assignments/:assignmentId/submit-quiz", authMiddleware, submitQuizAssignment);
 
 // GET /api/v1/students/assignments/:assignmentId/submission - Xem bài nộp và điểm
 router.get("/assignments/:assignmentId/submission", authMiddleware, getSubmissionAndGrade);

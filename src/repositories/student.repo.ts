@@ -60,13 +60,20 @@ export const createSubmission = async (
     assignmentId: string;
     studentId: string;
     status: string;
+    quizAnswers?: string | null;
   },
   attachments: {
     attachmentId: string;
     fileName: string;
     fileUri: string;
     fileSize: number;
-  }[]
+  }[],
+  gradeData?: {
+    gradeId: string;
+    score: number;
+    comment: string;
+    classId: string;
+  } | null
 ) => {
   return prisma.$transaction(async (tx) => {
     // Lưu thông tin submission
@@ -88,10 +95,28 @@ export const createSubmission = async (
       });
     }
 
+    // Lưu điểm tự động (nếu có - dùng cho bài trắc nghiệm)
+    if (gradeData) {
+      await tx.grades.create({
+        data: {
+          gradeId: gradeData.gradeId,
+          submissionId: submission.submissionId,
+          studentId: submissionData.studentId,
+          classId: gradeData.classId,
+          assignmentId: submissionData.assignmentId,
+          score: gradeData.score,
+          comment: gradeData.comment,
+        },
+      });
+    }
+
     // Trả về submission bao gồm các file đính kèm
     return tx.submissions.findUnique({
       where: { submissionId: submission.submissionId },
-      include: { SubmissionAttachments: true },
+      include: { 
+        SubmissionAttachments: true,
+        Grades: true,
+      },
     });
   });
 };
@@ -256,4 +281,5 @@ export const findGradesByStudentAndClass = async (studentId: string, classId: st
     },
   });
 };
+
 
