@@ -75,7 +75,7 @@ const resolveUrgency = (deadline: Date): "urgent" | "upcoming" => {
  * Lấy toàn bộ dữ liệu cho trang Dashboard của giáo viên trong một lần gọi.
  * Pattern: Facade — orchestrates multiple repository calls and maps to DTOs.
  */
-export const getTeacherDashboard = async (teacherId: string): Promise<TeacherDashboardDTO> => {
+export const getTeacherDashboard = async (teacherId: string, submissionsLimit: number = 10): Promise<TeacherDashboardDTO> => {
   // Chạy song song để giảm latency
   const [
     totalClasses,
@@ -90,7 +90,7 @@ export const getTeacherDashboard = async (teacherId: string): Promise<TeacherDas
     DashboardRepo.countDistinctStudentsByTeacherId(teacherId),
     DashboardRepo.countPendingEssaySubmissionsByTeacherId(teacherId),
     DashboardRepo.findClassSummariesByTeacherId(teacherId, 5),
-    DashboardRepo.findPendingEssaySubmissions(teacherId, 10),
+    DashboardRepo.findPendingEssaySubmissions(teacherId, submissionsLimit),
     DashboardRepo.findUpcomingAssignmentsByTeacherId(teacherId, 7, 10),
     DashboardRepo.findRecentSubmissionsByTeacherId(teacherId, 10),
   ]);

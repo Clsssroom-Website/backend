@@ -26,7 +26,8 @@ export const getDashboard = async (
 ): Promise<void> => {
   try {
     const teacherId = ensureTeacher(req);
-    const data = await DashboardService.getTeacherDashboard(teacherId);
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const data = await DashboardService.getTeacherDashboard(teacherId, limit);
     res.status(200).json({ success: true, data });
   } catch (error) {
     next(error);
