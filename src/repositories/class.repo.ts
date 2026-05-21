@@ -5,7 +5,11 @@ export const findAllClassesByTeacherId = async (teacherId: string, searchQuery?:
   const whereClause: any = { teacherId };
 
   if (searchQuery) {
-    whereClause.className = { contains: searchQuery }; // Search by exact/partial match
+    whereClause.OR = [
+      { className: { contains: searchQuery } },
+      { description: { contains: searchQuery } },
+      { room: { contains: searchQuery } },
+    ];
   }
 
   return prisma.classes.findMany({
@@ -104,7 +108,11 @@ export const findStudentsByClassId = async (classId: string) => {
 export const findJoinedClassesByStudentId = async (studentId: string, searchQuery?: string) => {
   const classWhereClause: any = {};
   if (searchQuery) {
-    classWhereClause.className = { contains: searchQuery };
+    classWhereClause.OR = [
+      { className: { contains: searchQuery } },
+      { description: { contains: searchQuery } },
+      { room: { contains: searchQuery } },
+    ];
   }
 
   return prisma.classEnrollments.findMany({
