@@ -163,3 +163,23 @@ export const getSubmissionAndGrade = async (req: Request<{ assignmentId: string 
     });
   }
 };
+
+// GET /api/v1/students/dashboard
+export const getDashboard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const studentId = ensureStudentRole(req);
+    const dashboardData = await StudentService.getStudentDashboard(studentId);
+
+    res.status(200).json({
+      success: true,
+      message: "Lấy dữ liệu Dashboard thành công!",
+      data: dashboardData,
+    });
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi lấy dữ liệu Dashboard: " + (error.message || "Internal Server Error"),
+    });
+  }
+};

@@ -95,3 +95,144 @@ export const createSubmission = async (
     });
   });
 };
+
+// ─── Student Dashboard Queries ──────────────────────────────────────────────────
+
+export const countEnrolledClasses = async (studentId: string): Promise<number> => {
+  return prisma.classEnrollments.count({
+    where: { studentId, status: "JOINED" },
+  });
+};
+
+export const countAssignmentsForStudent = async (studentId: string): Promise<number> => {
+  const enrollments = await prisma.classEnrollments.findMany({
+    where: { studentId, status: "JOINED" },
+    select: { classId: true },
+  });
+  const classIds = enrollments.map((e) => e.classId);
+  if (classIds.length === 0) return 0;
+  return prisma.assignments.count({
+    where: { classId: { in: classIds }, status: "ACTIVE" },
+  });
+};
+
+export const countSubmissionsByStudent = async (studentId: string): Promise<number> => {
+  return prisma.submissions.count({
+    where: { studentId },
+  });
+};
+
+export const findEnrolledClassSummaries = async (studentId: string, limit = 5) => {
+  return prisma.classEnrollments.findMany({
+    where: { studentId, status: "JOINED" },
+    take: limit,
+    orderBy: { joinTime: "desc" },
+    select: {
+      Classes: {
+        select: {
+          classId: true,
+          className: true,
+          status: true,
+          createdAt: true,
+          Users: {
+            select: { name: true },
+          },
+          _count: {
+            select: {
+              ClassEnrollments: true,
+              Assignments: true,
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
+export const findRecentGradesByStudent = async (studentId: string, limit = 10) => {
+  return prisma.submissions.findMany({
+    where: {
+      studentId,
+      Grades: { some: {} },
+    },
+    take: limit,
+    orderBy: { submittedAt: "desc" },
+    select: {
+      submissionId: true,
+      submittedAt: true,
+      Assignments: {
+        select: {
+          assignmentId: true,
+          title: true,
+          Classes: {
+            select: { classId: true, className: true },
+          },
+        },
+      },
+      Grades: {
+        select: {
+          score: true,
+          comment: true,
+          gradedAt: true,
+        },
+      },
+    },
+  });
+};
+
+export const findUpcomingAssignmentsForStudent = async (studentId: string, limit = 10) => {
+  const now = new Date();
+  const enrollments = await prisma.classEnrollments.findMany({
+    where: { studentId, status: "JOINED" },
+    select: { classId: true },
+  });
+  const classIds = enrollments.map((e) => e.classId);
+  if (classIds.length === 0) return [];
+
+  return prisma.assignments.findMany({
+    where: {
+      classId: { in: classIds },
+      status: "ACTIVE",
+      deadline: { gte: now },
+      Submissions: {
+        none: { studentId },
+      },
+    },
+    take: limit,
+    orderBy: { deadline: "asc" },
+    select: {
+      assignmentId: true,
+      title: true,
+      deadline: true,
+      typeAssignment: true,
+      Classes: {
+        select: { classId: true, className: true },
+      },
+    },
+  });
+};
+
+export const findRecentActivitiesByStudent = async (studentId: string, limit = 10) => {
+  return prisma.submissions.findMany({
+    where: { studentId },
+    take: limit,
+    orderBy: { submittedAt: "desc" },
+    select: {
+      submissionId: true,
+      submittedAt: true,
+      status: true,
+      Assignments: {
+        select: {
+          title: true,
+          Classes: { select: { className: true } },
+        },
+      },
+      Grades: {
+        select: {
+          score: true,
+          gradedAt: true,
+        },
+      },
+    },
+  });
+};

@@ -6,10 +6,14 @@ import {
   getAssignments,
   submitAssignment,
   getSubmissionAndGrade,
+  getDashboard,
 } from "../controllers/studentController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
 const router = Router();
+
+// GET /api/v1/students/dashboard - Lấy dữ liệu Dashboard cho học sinh
+router.get("/dashboard", authMiddleware, getDashboard);
 
 // POST /api/v1/students/classes/join - Học sinh tham gia lớp học
 router.post("/classes/join", authMiddleware, joinClass);
