@@ -55,7 +55,7 @@ export const createClass = async (req: Request, res: Response, next: NextFunctio
       topic,
     });
 
-    res.status(201).json({ message: "Tạo lớp học thành công!", data: newClass });
+    res.status(201).json({ success: true, message: "Tạo lớp học thành công!", data: newClass });
   } catch (error: any) {
     console.log(error);
     res.status(error.statusCode || 500).json({
@@ -119,7 +119,7 @@ export const updateClass = async (req: Request<{ id: string }>, res: Response, n
 
     const updatedClass = await ClassService.updateClass(teacherId, classId, updateData);
 
-    res.status(200).json({ message: "Cập nhật lớp học thành công!", data: updatedClass });
+    res.status(200).json({ success: true, message: "Cập nhật lớp học thành công!", data: updatedClass });
   } catch (error: any) {
     console.log(error);
     res.status(error.statusCode || 500).json({
@@ -184,7 +184,7 @@ export const deleteClass = async (req: Request<{ id: string }>, res: Response, n
 
     await ClassService.deleteClass(teacherId, classId);
 
-    res.status(200).json({ message: "Xóa lớp học thành công!" });
+    res.status(200).json({ success: true, message: "Xóa lớp học thành công!" });
   } catch (error: any) {
     console.log(error);
     res.status(error.statusCode || 500).json({
