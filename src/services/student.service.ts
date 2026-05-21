@@ -183,9 +183,19 @@ export const getSubmissionAndGrade = async (studentId: string, assignmentId: str
     })
   );
 
+  const firstGrade = submission.Grades && submission.Grades.length > 0 ? submission.Grades[0] : null;
+
   return {
     ...submission,
     SubmissionAttachments: attachmentsWithUrls,
+    grade: firstGrade
+      ? {
+          gradeId: firstGrade.gradeId,
+          score: firstGrade.score,
+          comment: firstGrade.comment,
+          gradedAt: firstGrade.gradedAt,
+        }
+      : null,
   };
 };
 
@@ -270,4 +280,16 @@ export const getStudentDashboard = async (studentId: string) => {
     upcomingAssignments,
     recentActivities,
   };
+};
+
+// Lấy danh sách điểm số của học sinh trong một lớp
+export const getGradesForStudent = async (studentId: string, classId: string) => {
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  await ensureStudentEnrolled(studentId, classId);
+
+  return StudentRepo.findGradesByStudentAndClass(studentId, classId);
 };
