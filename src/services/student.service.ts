@@ -179,3 +179,86 @@ export const getSubmissionAndGrade = async (studentId: string, assignmentId: str
     SubmissionAttachments: attachmentsWithUrls,
   };
 };
+
+// Lấy thông tin Dashboard cho học sinh
+export const getStudentDashboard = async (studentId: string) => {
+  const [
+    totalClasses,
+    totalAssignments,
+    submittedCount,
+    rawClasses,
+    rawRecentGrades,
+    rawUpcoming,
+    rawActivities,
+  ] = await Promise.all([
+    StudentRepo.countEnrolledClasses(studentId),
+    StudentRepo.countAssignmentsForStudent(studentId),
+    StudentRepo.countSubmissionsByStudent(studentId),
+    StudentRepo.findEnrolledClassSummaries(studentId, 5),
+    StudentRepo.findRecentGradesByStudent(studentId, 10),
+    StudentRepo.findUpcomingAssignmentsForStudent(studentId, 10),
+    StudentRepo.findRecentActivitiesByStudent(studentId, 10),
+  ]);
+
+  const stats = {
+    totalClasses,
+    totalAssignments,
+    submittedCount,
+    pendingAssignments: Math.max(0, totalAssignments - submittedCount),
+  };
+
+  const classes = rawClasses.map((item) => ({
+    classId: item.Classes.classId,
+    className: item.Classes.className,
+    teacherName: item.Classes.Users.name,
+    studentCount: item.Classes._count.ClassEnrollments,
+    assignmentCount: item.Classes._count.Assignments,
+    createdAt: item.Classes.createdAt,
+  }));
+
+  const recentGrades = rawRecentGrades.map((g) => ({
+    submissionId: g.submissionId,
+    assignmentId: g.Assignments.assignmentId,
+    assignmentTitle: g.Assignments.title,
+    classId: g.Assignments.Classes.classId,
+    className: g.Assignments.Classes.className,
+    score: g.Grades[0]?.score ?? null,
+    comment: g.Grades[0]?.comment ?? null,
+    gradedAt: g.Grades[0]?.gradedAt ?? null,
+  }));
+
+  const URGENT_THRESHOLD_DAYS = 2;
+  const upcomingAssignments = rawUpcoming.map((a) => {
+    const diffMs = new Date(a.deadline).getTime() - Date.now();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    const urgency = diffDays < URGENT_THRESHOLD_DAYS ? "urgent" : "upcoming";
+
+    return {
+      assignmentId: a.assignmentId,
+      title: a.title,
+      classId: a.Classes.classId,
+      className: a.Classes.className,
+      deadline: a.deadline,
+      typeAssignment: a.typeAssignment,
+      urgency,
+    };
+  });
+
+  const recentActivities = rawActivities.map((act) => ({
+    submissionId: act.submissionId,
+    assignmentTitle: act.Assignments.title,
+    className: act.Assignments.Classes.className,
+    submittedAt: act.submittedAt,
+    status: act.status,
+    score: act.Grades[0]?.score ?? null,
+    gradedAt: act.Grades[0]?.gradedAt ?? null,
+  }));
+
+  return {
+    stats,
+    classes,
+    recentGrades,
+    upcomingAssignments,
+    recentActivities,
+  };
+};
