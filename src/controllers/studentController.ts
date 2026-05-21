@@ -183,3 +183,26 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
     });
   }
 };
+
+// GET /api/v1/students/classes/:classId/grades
+export const getGrades = async (req: Request<{ classId: string }>, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const studentId = ensureStudentRole(req);
+    const { classId } = req.params;
+
+    const grades = await StudentService.getGradesForStudent(studentId, classId);
+
+    res.status(200).json({
+      success: true,
+      message: "Lấy danh sách điểm số thành công!",
+      data: grades,
+    });
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi lấy danh sách điểm số: " + (error.message || "Internal Server Error"),
+    });
+  }
+};
+

@@ -236,3 +236,24 @@ export const findRecentActivitiesByStudent = async (studentId: string, limit = 1
     },
   });
 };
+
+export const findGradesByStudentAndClass = async (studentId: string, classId: string) => {
+  return prisma.grades.findMany({
+    where: {
+      studentId,
+      classId,
+    },
+    orderBy: {
+      gradedAt: "desc",
+    },
+    include: {
+      Assignments: {
+        select: {
+          title: true,
+          deadline: true,
+        },
+      },
+    },
+  });
+};
+
