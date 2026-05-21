@@ -150,3 +150,62 @@ export const findDocumentsByClassId = async (classId: string) => {
   });
 };
 
+// Lấy toàn bộ dữ liệu phục vụ tính điểm trung bình lớp học
+export const findClassGradebookData = async (classId: string) => {
+  // Lấy tất cả bài tập trong lớp học
+  const assignments = await prisma.assignments.findMany({
+    where: { classId },
+    select: {
+      assignmentId: true,
+      title: true,
+      deadline: true,
+      typeAssignment: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  // Lấy danh sách học sinh tham gia lớp
+  const enrollments = await prisma.classEnrollments.findMany({
+    where: { classId, status: "JOINED" },
+    include: {
+      Users: {
+        select: {
+          userId: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: { Users: { name: "asc" } },
+  });
+
+  // Lấy tất cả điểm trong lớp học
+  const grades = await prisma.grades.findMany({
+    where: { classId },
+    select: {
+      gradeId: true,
+      studentId: true,
+      assignmentId: true,
+      score: true,
+      comment: true,
+      gradedAt: true,
+    },
+  });
+
+  // Lấy tất cả bài nộp của các bài tập thuộc lớp học
+  // (dùng để phát hiện học sinh quá hạn mà chưa nộp bài)
+  const assignmentIds = assignments.map((a) => a.assignmentId);
+  const submissions = assignmentIds.length > 0
+    ? await prisma.submissions.findMany({
+        where: { assignmentId: { in: assignmentIds } },
+        select: {
+          submissionId: true,
+          studentId: true,
+          assignmentId: true,
+        },
+      })
+    : [];
+
+  return { assignments, enrollments, grades, submissions };
+};
+

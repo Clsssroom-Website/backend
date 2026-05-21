@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createClass, updateClass, deleteClass, getAllClasses, getClassById, getClassStudents, getClassStream, removeStudentFromClass } from "../controllers/classController.js";
+import { createClass, updateClass, deleteClass, getAllClasses, getClassById, getClassStudents, getClassStream, removeStudentFromClass, getClassGrades } from "../controllers/classController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 
 
@@ -16,6 +16,9 @@ router.get("/:id/stream", authMiddleware, getClassStream);
 
 // GET /api/v1/classes/:id/students - API lấy danh sách học sinh của lớp
 router.get("/:id/students", authMiddleware, getClassStudents);
+
+// GET /api/v1/classes/:id/grades - API lấy bảng điểm lớp học (gồm danh sách điểm từng học sinh và điểm trung bình)
+router.get("/:id/grades", authMiddleware, getClassGrades);
 
 // DELETE /api/v1/classes/:id/students/:studentId - API xóa học sinh khỏi lớp
 router.delete("/:id/students/:studentId", authMiddleware, removeStudentFromClass);

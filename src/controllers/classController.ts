@@ -193,3 +193,34 @@ export const deleteClass = async (req: Request<{ id: string }>, res: Response, n
     });
   }
 };
+
+// GET /api/v1/classes/:id/grades - API lấy bảng điểm của lớp học (cho giáo viên)
+export const getClassGrades = async (req: Request<{ id: string }>, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userPayload = (req as any).user;
+    if (!userPayload || !userPayload.userId) {
+      throw new UnauthorizedError("Vui lòng đăng nhập.");
+    }
+    if (userPayload.role !== "teacher") {
+      throw new ForbiddenError("Chỉ có Giáo viên mới được xem danh sách điểm.");
+    }
+
+    const classId = req.params.id as string;
+    const teacherId = userPayload.userId;
+
+    const gradesSummary = await ClassService.getClassGrades(teacherId, classId);
+
+    res.status(200).json({
+      success: true,
+      message: "Lấy danh sách điểm số lớp học thành công!",
+      data: gradesSummary,
+    });
+  } catch (error: any) {
+    console.log(error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: "Lỗi khi lấy danh sách điểm số lớp học: " + (error.message || "Internal Server Error"),
+    });
+  }
+};
+

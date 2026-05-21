@@ -283,3 +283,91 @@ export const getClassStream = async (classId: string) => {
   return stream;
 };
 
+// Lấy danh sách điểm của từng học sinh trong lớp và tính điểm trung bình
+export const getClassGrades = async (teacherId: string, classId: string) => {
+  // 1. Kiểm tra lớp học tồn tại
+  const existingClass = await ClassRepo.findClassById(classId);
+  if (!existingClass) {
+    throw new NotFoundError("Không tìm thấy lớp học.");
+  }
+
+  // 2. Kiểm tra xem người yêu cầu có phải là giáo viên của lớp không
+  if (existingClass.teacherId !== teacherId) {
+    throw new ForbiddenError("Bạn không có quyền truy cập bảng điểm của lớp học này.");
+  }
+
+  // 3. Lấy dữ liệu điểm từ repo (bao gồm cả danh sách bài nộp)
+  const { assignments, enrollments, grades, submissions } = await ClassRepo.findClassGradebookData(classId);
+
+  const now = new Date();
+
+  // 4. Định dạng dữ liệu điểm của từng học sinh và tính trung bình
+  const studentGrades = enrollments.map((enrollment) => {
+    const student = enrollment.Users;
+
+    // Map qua danh sách tất cả các bài tập để đảm bảo hiển thị đầy đủ cột bài tập
+    const studentGradesList = assignments.map((assign) => {
+      const grade = grades.find(
+        (g) => g.studentId === student.userId && g.assignmentId === assign.assignmentId
+      );
+
+      // Kiểm tra xem học sinh có bài nộp cho bài tập này không
+      const hasSubmission = submissions.some(
+        (s) => s.studentId === student.userId && s.assignmentId === assign.assignmentId
+      );
+
+      // Xác định bài tập đã quá hạn chưa
+      const deadlinePassed = assign.deadline ? now > new Date(assign.deadline) : false;
+
+      // Nếu không có điểm, đã quá hạn, và không có bài nộp → tự động 0 điểm
+      const isAbsent = !grade && deadlinePassed && !hasSubmission;
+
+      return {
+        assignmentId: assign.assignmentId,
+        title: assign.title,
+        score: grade ? grade.score : isAbsent ? 0 : null,
+        comment: grade ? grade.comment : isAbsent ? "Không nộp bài" : null,
+        gradedAt: grade ? grade.gradedAt : null,
+        // Metadata để frontend phân biệt: điểm thật vs tự động 0 vs chưa chấm
+        status: grade
+          ? "graded"
+          : isAbsent
+          ? "absent"
+          : hasSubmission
+          ? "pending"   // Đã nộp nhưng chưa chấm
+          : "not_started", // Chưa tới hạn hoặc chưa nộp nhưng còn thời gian
+      };
+    });
+
+    // Tính điểm trung bình:
+    // - Bao gồm cả điểm 0 của học sinh vắng (absent) để phản ánh đúng kết quả
+    // - Chỉ loại trừ các ô chưa có điểm (null) như bài chưa chấm hoặc chưa tới hạn
+    const scorableEntries = studentGradesList.filter(
+      (g) => g.score !== null && g.score !== undefined
+    );
+
+    const averageScore =
+      scorableEntries.length > 0
+        ? parseFloat(
+            (
+              scorableEntries.reduce((sum, g) => sum + (g.score as number), 0) /
+              scorableEntries.length
+            ).toFixed(2)
+          )
+        : null;
+
+    return {
+      studentId: student.userId,
+      name: student.name,
+      email: student.email,
+      grades: studentGradesList,
+      averageScore,
+    };
+  });
+
+  return {
+    assignments,
+    students: studentGrades,
+  };
+};
+
