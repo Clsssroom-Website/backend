@@ -45,8 +45,7 @@ export class AssignmentController {
       const teacherId = ensureTeacher(req);
       const classId = req.params.id as string;
 
-      const { title, description, deadline, typeAssignment, quizUrl, quizData, teacherGmail } = req.body;
-      const autoCreateQuiz = req.body.autoCreateQuiz === "true" || req.body.autoCreateQuiz === true;
+      const { title, description, deadline, typeAssignment, quizData } = req.body;
 
       if (!title || String(title).trim() === "") {
         throw new BadRequestError("Tiêu đề bài tập không được để trống.");
@@ -62,12 +61,9 @@ export class AssignmentController {
         description,
         deadline,
         typeAssignment,
-        quizUrl,
         quizData,
         files,
-        autoCreateQuiz,
-        teacherGmail,
-      } as any);
+      });
 
       res.status(201).json({
         success: true,
@@ -90,8 +86,7 @@ export class AssignmentController {
       const teacherId = ensureTeacher(req);
       const assignmentId = req.params.assignmentId as string;
 
-      const { title, description, deadline, typeAssignment, quizUrl, quizData, teacherGmail } = req.body;
-      const autoCreateQuiz = req.body.autoCreateQuiz === "true" || req.body.autoCreateQuiz === true;
+      const { title, description, deadline, typeAssignment, quizData } = req.body;
 
       // Danh sách attachment IDs muốn giữ lại (gửi từ frontend)
       let keepAttachmentIds: string[] | undefined;
@@ -109,13 +104,10 @@ export class AssignmentController {
         description,
         deadline,
         typeAssignment,
-        quizUrl,
         quizData,
         keepAttachmentIds,
         files,
-        autoCreateQuiz,
-        teacherGmail,
-      } as any);
+      });
 
       res.status(200).json({
         success: true,

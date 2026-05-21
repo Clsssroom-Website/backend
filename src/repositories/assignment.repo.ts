@@ -11,7 +11,6 @@ export class AssignmentRepository {
     description?: string;
     deadline: Date;
     typeAssignment?: string;
-    quizUrl?: string;
     quizData?: string;
   }) {
     const assignmentId = uuidv4();
@@ -23,7 +22,6 @@ export class AssignmentRepository {
         description: data.description ?? "",
         deadline: data.deadline,
         typeAssignment: data.typeAssignment ?? "ESSAY",
-        quizUrl: data.quizUrl,
         quizData: data.quizData,
         status: "ACTIVE",
       },
@@ -74,7 +72,6 @@ export class AssignmentRepository {
       description?: string;
       deadline?: Date;
       typeAssignment?: string;
-      quizUrl?: string;
       quizData?: string;
       status?: string;
     }

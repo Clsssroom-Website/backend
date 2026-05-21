@@ -67,7 +67,6 @@ export class AssignmentService {
       description?: string;
       deadline: string; // ISO string từ frontend
       typeAssignment?: string;
-      quizUrl?: string;
       quizData?: string;
       files?: Express.Multer.File[];
     }
@@ -102,9 +101,6 @@ export class AssignmentService {
     });
     const teacherName = teacherRecord?.name || "Giáo viên";
 
-    let quizUrl = data.quizUrl;
-    let quizData = data.quizData;
-
     // 5. Tạo bài tập
     const assignment = await this.assignmentRepo.createAssignment({
       classId,
@@ -112,8 +108,7 @@ export class AssignmentService {
       description: data.description?.trim(),
       deadline: deadlineDate,
       typeAssignment: data.typeAssignment ?? "ESSAY",
-      quizUrl: quizUrl,
-      quizData: quizData,
+      quizData: data.quizData,
     });
 
     // Phát sự kiện assignment.created
@@ -193,7 +188,6 @@ export class AssignmentService {
       description?: string;
       deadline?: string;
       typeAssignment?: string;
-      quizUrl?: string;
       quizData?: string;
       keepAttachmentIds?: string[]; // IDs của attachments cũ muốn giữ lại
       files?: Express.Multer.File[];
@@ -212,17 +206,13 @@ export class AssignmentService {
       if (isNaN(deadlineDate.getTime())) throw new BadRequestError("Hạn nộp không hợp lệ.");
     }
 
-    let quizUrl = data.quizUrl;
-    let quizData = data.quizData;
-
     // Cập nhật thông tin bài tập
     await this.assignmentRepo.updateAssignment(assignmentId, {
       title: data.title?.trim(),
       description: data.description?.trim(),
       deadline: deadlineDate,
       typeAssignment: data.typeAssignment,
-      quizUrl: quizUrl,
-      quizData: quizData,
+      quizData: data.quizData,
     });
 
     // Nếu có thay đổi về attachments (giữ lại hoặc thêm mới)

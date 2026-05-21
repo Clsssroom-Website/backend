@@ -48,8 +48,7 @@ CREATE TABLE Assignments (
     title NVARCHAR (255) NOT NULL,
     description NVARCHAR (MAX),
     deadline DATETIME NOT NULL,
-    typeAssignment VARCHAR(20), -- Ví dụ: 'File' hoặc 'Quiz' [cite: 3792]
-    quizUrl VARCHAR(500),
+    typeAssignment VARCHAR(20), -- Ví dụ: 'ESSAY' hoặc 'MULTIPLE_CHOICE'
     quizData NVARCHAR(MAX),
     status VARCHAR(20) DEFAULT 'ACTIVE',
     createdAt DATETIME DEFAULT GETDATE (),
