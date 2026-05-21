@@ -45,7 +45,7 @@ export class AssignmentController {
       const teacherId = ensureTeacher(req);
       const classId = req.params.id as string;
 
-      const { title, description, deadline, typeAssignment } = req.body;
+      const { title, description, deadline, typeAssignment, quizData } = req.body;
 
       if (!title || String(title).trim() === "") {
         throw new BadRequestError("Tiêu đề bài tập không được để trống.");
@@ -61,6 +61,7 @@ export class AssignmentController {
         description,
         deadline,
         typeAssignment,
+        quizData,
         files,
       });
 
@@ -85,7 +86,7 @@ export class AssignmentController {
       const teacherId = ensureTeacher(req);
       const assignmentId = req.params.assignmentId as string;
 
-      const { title, description, deadline, typeAssignment } = req.body;
+      const { title, description, deadline, typeAssignment, quizData } = req.body;
 
       // Danh sách attachment IDs muốn giữ lại (gửi từ frontend)
       let keepAttachmentIds: string[] | undefined;
@@ -103,6 +104,7 @@ export class AssignmentController {
         description,
         deadline,
         typeAssignment,
+        quizData,
         keepAttachmentIds,
         files,
       });

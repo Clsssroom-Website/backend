@@ -78,7 +78,8 @@ export const getAssignmentsForStudent = async (studentId: string, classId: strin
 export const submitAssignment = async (
   studentId: string,
   assignmentId: string,
-  files: { fileName: string; fileUri: string; fileSize: number }[]
+  files: { fileName: string; fileUri: string; fileSize: number }[],
+  quizAnswers?: any
 ) => {
   // 1. Kiểm tra bài tập tồn tại
   const assignment = await StudentRepo.findAssignmentById(assignmentId);
@@ -101,7 +102,85 @@ export const submitAssignment = async (
     throw new BadRequestError("Bạn đã nộp bài tập này rồi. Nếu muốn nộp lại, vui lòng xóa bài cũ (chức năng đang cập nhật).");
   }
 
-  // 5. Tạo Submission
+  // 5. Tính toán điểm trắc nghiệm tự động (nếu là bài MULTIPLE_CHOICE)
+  let dbQuizAnswers: string | null = null;
+  let gradeData: {
+    gradeId: string;
+    score: number;
+    comment: string;
+    classId: string;
+  } | null = null;
+
+  if (assignment.typeAssignment === "MULTIPLE_CHOICE") {
+    if (!quizAnswers) {
+      throw new BadRequestError("Vui lòng cung cấp đáp án bài kiểm tra.");
+    }
+
+    let questions: any[] = [];
+    try {
+      questions = JSON.parse(assignment.quizData || "[]");
+    } catch (err) {
+      console.error("Lỗi khi parse quizData:", err);
+      throw new BadRequestError("Dữ liệu câu hỏi trắc nghiệm bị lỗi.");
+    }
+
+    if (questions.length === 0) {
+      throw new BadRequestError("Bài tập trắc nghiệm này chưa có câu hỏi.");
+    }
+
+    const studentAnswersArr = Array.isArray(quizAnswers)
+      ? quizAnswers
+      : typeof quizAnswers === "string"
+      ? JSON.parse(quizAnswers)
+      : [];
+
+    let correctCount = 0;
+    let totalQuestions = questions.length;
+    let totalScoreWeight = 0;
+    let studentScoreWeight = 0;
+
+    const gradedAnswers = questions.map((q) => {
+      const studentAns = studentAnswersArr.find(
+        (a: any) => a.questionId === q.id || a.questionId === q.questionId
+      );
+      const selectedAnswer = studentAns ? studentAns.selectedAnswer : "";
+      const isCorrect =
+        String(selectedAnswer).trim().toLowerCase() ===
+        String(q.correctAnswer).trim().toLowerCase();
+
+      if (isCorrect) {
+        correctCount++;
+        studentScoreWeight += q.score || 1;
+      }
+      totalScoreWeight += q.score || 1;
+
+      return {
+        questionId: q.id,
+        questionText: q.questionText,
+        selectedAnswer,
+        correctAnswer: q.correctAnswer,
+        isCorrect,
+      };
+    });
+
+    let calculatedScore = 0;
+    if (totalScoreWeight > 0) {
+      calculatedScore = (studentScoreWeight / totalScoreWeight) * 10;
+    } else {
+      calculatedScore = (correctCount / totalQuestions) * 10;
+    }
+    calculatedScore = Math.round(calculatedScore * 100) / 100;
+
+    dbQuizAnswers = JSON.stringify(gradedAnswers);
+    gradeData = {
+      gradeId: uuidv4(),
+      score: calculatedScore,
+      comment: `Hệ thống chấm tự động: Đúng ${correctCount}/${totalQuestions} câu.`,
+      classId: assignment.classId,
+    };
+  }
+
+  // 6. Tạo Submission
   const submissionId = uuidv4();
   const attachments = files.map((file) => ({
     attachmentId: uuidv4(),
@@ -113,9 +192,11 @@ export const submitAssignment = async (
       submissionId,
       assignmentId,
       studentId,
-      status: "SUBMITTED",
+      status: assignment.typeAssignment === "MULTIPLE_CHOICE" ? "COMPLETED" : "SUBMITTED",
+      quizAnswers: dbQuizAnswers,
     },
-    attachments
+    attachments,
+    gradeData
   );
 
   if (!newSubmission) {
@@ -190,11 +271,11 @@ export const getSubmissionAndGrade = async (studentId: string, assignmentId: str
     SubmissionAttachments: attachmentsWithUrls,
     grade: firstGrade
       ? {
-          gradeId: firstGrade.gradeId,
-          score: firstGrade.score,
-          comment: firstGrade.comment,
-          gradedAt: firstGrade.gradedAt,
-        }
+        gradeId: firstGrade.gradeId,
+        score: firstGrade.score,
+        comment: firstGrade.comment,
+        gradedAt: firstGrade.gradedAt,
+      }
       : null,
   };
 };

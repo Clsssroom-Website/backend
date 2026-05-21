@@ -11,6 +11,7 @@ export class AssignmentRepository {
     description?: string;
     deadline: Date;
     typeAssignment?: string;
+    quizData?: string;
   }) {
     const assignmentId = uuidv4();
     return prisma.assignments.create({
@@ -21,6 +22,7 @@ export class AssignmentRepository {
         description: data.description ?? "",
         deadline: data.deadline,
         typeAssignment: data.typeAssignment ?? "ESSAY",
+        quizData: data.quizData,
         status: "ACTIVE",
       },
       include: {
@@ -70,6 +72,7 @@ export class AssignmentRepository {
       description?: string;
       deadline?: Date;
       typeAssignment?: string;
+      quizData?: string;
       status?: string;
     }
   ) {

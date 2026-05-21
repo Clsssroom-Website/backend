@@ -48,7 +48,8 @@ CREATE TABLE Assignments (
     title NVARCHAR (255) NOT NULL,
     description NVARCHAR (MAX),
     deadline DATETIME NOT NULL,
-    typeAssignment VARCHAR(20), -- Ví dụ: 'File' hoặc 'Quiz' [cite: 3792]
+    typeAssignment VARCHAR(20), -- Ví dụ: 'ESSAY' hoặc 'MULTIPLE_CHOICE'
+    quizData NVARCHAR(MAX),
     status VARCHAR(20) DEFAULT 'ACTIVE',
     createdAt DATETIME DEFAULT GETDATE (),
     CONSTRAINT FK_Assignments_Class FOREIGN KEY (classId) REFERENCES Classes (classId)
@@ -93,6 +94,7 @@ CREATE TABLE Submissions (
     studentId VARCHAR(50) NOT NULL,
     submittedAt DATETIME DEFAULT GETDATE (),
     status VARCHAR(20), -- Ví dụ: 'Đã nộp', 'Nộp muộn' [cite: 3799]
+    quizAnswers NVARCHAR(MAX),
     CONSTRAINT FK_Submissions_Assign FOREIGN KEY (assignmentId) REFERENCES Assignments (assignmentId),
     CONSTRAINT FK_Submissions_Student FOREIGN KEY (studentId) REFERENCES Users (userId)
 );
@@ -126,4 +128,15 @@ CREATE TABLE Grades (
     CONSTRAINT FK_Grades_Class FOREIGN KEY (classId) REFERENCES Classes (classId),
     CONSTRAINT FK_Grades_Assign FOREIGN KEY (assignmentId) REFERENCES Assignments (assignmentId)
 );
+GO
+
+-- 12. Cập nhật thêm cột cho Native Quiz nếu database đã tồn tại
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Assignments') AND name = 'quizData')
+BEGIN
+    ALTER TABLE Assignments ADD quizData NVARCHAR(MAX) NULL;
+END;
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Submissions') AND name = 'quizAnswers')
+BEGIN
+    ALTER TABLE Submissions ADD quizAnswers NVARCHAR(MAX) NULL;
+END;
 GO

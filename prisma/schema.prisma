@@ -23,6 +23,7 @@ model Assignments {
   description           String?                 @db.NVarChar(Max)
   deadline              DateTime                @db.DateTime
   typeAssignment        String?                 @db.VarChar(20)
+  quizData              String?                 @db.NVarChar(Max)
   status                String?                 @default("ACTIVE", map: "DF__Assignmen__statu__59063A47") @db.VarChar(20)
   createdAt             DateTime?               @default(now(), map: "DF__Assignmen__creat__59FA5E80") @db.DateTime
   AssignmentAttachments AssignmentAttachments[]
@@ -110,6 +111,7 @@ model Submissions {
   studentId             String                  @db.VarChar(50)
   submittedAt           DateTime?               @default(now(), map: "DF__Submissio__submi__693CA210") @db.DateTime
   status                String?                 @db.VarChar(20)
+  quizAnswers           String?                 @db.NVarChar(Max)
   Grades                Grades[]
   SubmissionAttachments SubmissionAttachments[]
   Assignments           Assignments             @relation(fields: [assignmentId], references: [assignmentId], onUpdate: NoAction, map: "FK_Submissions_Assign")

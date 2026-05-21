@@ -67,6 +67,7 @@ export class AssignmentService {
       description?: string;
       deadline: string; // ISO string từ frontend
       typeAssignment?: string;
+      quizData?: string;
       files?: Express.Multer.File[];
     }
   ) {
@@ -93,10 +94,10 @@ export class AssignmentService {
       throw new BadRequestError("Hạn nộp không hợp lệ.");
     }
 
-    // Lấy tên giáo viên
+    // Lấy tên và email giáo viên
     const teacherRecord = await prisma.users.findUnique({
       where: { userId: teacherId },
-      select: { name: true },
+      select: { name: true, email: true },
     });
     const teacherName = teacherRecord?.name || "Giáo viên";
 
@@ -107,6 +108,7 @@ export class AssignmentService {
       description: data.description?.trim(),
       deadline: deadlineDate,
       typeAssignment: data.typeAssignment ?? "ESSAY",
+      quizData: data.quizData,
     });
 
     // Phát sự kiện assignment.created
@@ -186,6 +188,7 @@ export class AssignmentService {
       description?: string;
       deadline?: string;
       typeAssignment?: string;
+      quizData?: string;
       keepAttachmentIds?: string[]; // IDs của attachments cũ muốn giữ lại
       files?: Express.Multer.File[];
     }
@@ -209,6 +212,7 @@ export class AssignmentService {
       description: data.description?.trim(),
       deadline: deadlineDate,
       typeAssignment: data.typeAssignment,
+      quizData: data.quizData,
     });
 
     // Nếu có thay đổi về attachments (giữ lại hoặc thêm mới)

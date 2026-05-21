@@ -31,12 +31,8 @@ export const joinClass = async (req: Request, res: Response, next: NextFunction)
       message: "Tham gia lớp học thành công!",
       data: targetClass,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi tham gia lớp học: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -51,12 +47,8 @@ export const getEnrolledClasses = async (req: Request, res: Response, next: Next
       message: "Lấy danh sách lớp học tham gia thành công!",
       data: classes,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi lấy danh sách lớp học tham gia: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -73,12 +65,8 @@ export const getClassDetails = async (req: Request<{ classId: string }>, res: Re
       message: "Lấy chi tiết lớp học thành công!",
       data: classDetails,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi lấy chi tiết lớp học: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -95,12 +83,8 @@ export const getAssignments = async (req: Request<{ classId: string }>, res: Res
       message: "Lấy danh sách bài tập thành công!",
       data: assignments,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi lấy danh sách bài tập: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -112,10 +96,9 @@ export const submitAssignment = async (req: Request<{ assignmentId: string }>, r
     const files = req.files as Express.Multer.File[];
     const attachments: { fileName: string; fileUri: string; fileSize: number }[] = [];
 
-    const { MinioStorageService } = await import("../services/storage/minioStorage.js");
-    const storageService = new MinioStorageService("classroom-submissions");
-
     if (files && files.length > 0) {
+      const { MinioStorageService } = await import("../services/storage/minioStorage.js");
+      const storageService = new MinioStorageService("classroom-submissions");
       for (const file of files) {
         const result = await storageService.uploadFile(file.buffer, file.originalname, file.mimetype);
         attachments.push({
@@ -126,21 +109,40 @@ export const submitAssignment = async (req: Request<{ assignmentId: string }>, r
       }
     }
 
-    const submission = await StudentService.submitAssignment(studentId, assignmentId, attachments);
+    const { quizAnswers } = req.body;
+    const submission = await StudentService.submitAssignment(studentId, assignmentId, attachments, quizAnswers);
+
 
     res.status(201).json({
       success: true,
       message: "Nộp bài tập thành công!",
       data: submission,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi nộp bài tập: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
+
+// POST /api/v1/students/assignments/:assignmentId/submit-quiz
+export const submitQuizAssignment = async (req: Request<{ assignmentId: string }>, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const studentId = ensureStudentRole(req);
+    const { assignmentId } = req.params;
+    const { quizAnswers } = req.body;
+
+    // quizAnswers có thể là string (JSON) hoặc array
+    const submission = await StudentService.submitAssignment(studentId, assignmentId, [], quizAnswers);
+
+    res.status(201).json({
+      success: true,
+      message: "Nộp bài trắc nghiệm thành công!",
+      data: submission,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 // GET /api/v1/students/assignments/:assignmentId/submission
 export const getSubmissionAndGrade = async (req: Request<{ assignmentId: string }>, res: Response, next: NextFunction): Promise<void> => {
@@ -155,12 +157,8 @@ export const getSubmissionAndGrade = async (req: Request<{ assignmentId: string 
       message: submission ? "Lấy thông tin bài nộp thành công!" : "Bạn chưa nộp bài tập này.",
       data: submission,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi lấy thông tin bài nộp: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -175,12 +173,8 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
       message: "Lấy dữ liệu Dashboard thành công!",
       data: dashboardData,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi lấy dữ liệu Dashboard: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -197,12 +191,8 @@ export const getGrades = async (req: Request<{ classId: string }>, res: Response
       message: "Lấy danh sách điểm số thành công!",
       data: grades,
     });
-  } catch (error: any) {
-    console.log(error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: "Lỗi khi lấy danh sách điểm số: " + (error.message || "Internal Server Error"),
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
