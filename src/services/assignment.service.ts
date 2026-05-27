@@ -1,4 +1,4 @@
-import { AssignmentRepository } from "../repositories/assignment.repo.js";
+import { AssignmentRepository, QuizQuestionInput } from "../repositories/assignment.repo.js";
 import { MinioStorageService, IStorageService } from "./storage/minioStorage.js";
 import { NotFoundError, ForbiddenError, BadRequestError } from "../errors/index.js";
 import prisma from "../config/prisma.js";
@@ -13,7 +13,9 @@ export class AssignmentService {
     this.storageService = new MinioStorageService("classroom-assignments");
   }
 
-  // ─── Helper: kiểm tra teacher có quyền trên bài tập ──────────────────────────
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  /** Kiểm tra teacher có quyền trên bài tập không */
   private async ensureTeacherOwnsAssignment(teacherId: string, assignmentId: string) {
     const assignment = await this.assignmentRepo.findAssignmentById(assignmentId);
     if (!assignment) throw new NotFoundError("Không tìm thấy bài tập.");
@@ -24,10 +26,35 @@ export class AssignmentService {
     return assignment;
   }
 
-  // ─── Helper: serialize BigInt trong attachments và map URL ───────────────────
+  /** Validate danh sách câu hỏi trắc nghiệm */
+  private validateQuizQuestions(questions: any[]): QuizQuestionInput[] {
+    return questions.map((q, i) => {
+      if (!q.questionText || String(q.questionText).trim() === "") {
+        throw new BadRequestError(`Câu hỏi ${i + 1} không được để trống nội dung.`);
+      }
+      if (!Array.isArray(q.options) || q.options.length < 2) {
+        throw new BadRequestError(`Câu hỏi ${i + 1} phải có ít nhất 2 đáp án.`);
+      }
+      const hasCorrect = q.options.some((o: any) => o.isCorrect === true);
+      if (!hasCorrect) {
+        throw new BadRequestError(`Câu hỏi ${i + 1} phải có ít nhất 1 đáp án đúng.`);
+      }
+      return {
+        questionText: String(q.questionText).trim(),
+        points: Number(q.points) > 0 ? Number(q.points) : 1,
+        sortOrder: Number(q.sortOrder) > 0 ? Number(q.sortOrder) : i + 1,
+        options: q.options.map((o: any) => ({
+          optionText: String(o.optionText ?? "").trim(),
+          isCorrect: Boolean(o.isCorrect),
+        })),
+      };
+    });
+  }
+
+  /** Serialize BigInt fileSize và sinh presigned URL cho assignment attachments */
   private async serializeAttachments(assignment: any) {
     if (!assignment) return assignment;
-    
+
     let processedAttachments = [];
     if (assignment.AssignmentAttachments && assignment.AssignmentAttachments.length > 0) {
       processedAttachments = await Promise.all(
@@ -37,14 +64,14 @@ export class AssignmentService {
           try {
             presignedUrl = await this.storageService.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
             downloadUrl = await this.storageService.getPresignedUrl(att.fileUrl, true, att.fileName || "download");
-          } catch (err) {
+          } catch {
             console.warn("Could not generate presigned URL for", att.fileUrl);
           }
           return {
             ...att,
             fileSize: att.fileSize != null ? att.fileSize.toString() : null,
-            fileUrl: presignedUrl, // Link xem online
-            downloadUrl: downloadUrl, // Link tải xuống trực tiếp
+            fileUrl: presignedUrl,
+            downloadUrl,
           };
         })
       );
@@ -56,8 +83,11 @@ export class AssignmentService {
     };
   }
 
+  // ─── Public API ───────────────────────────────────────────────────────────
+
   /**
-   * Tạo bài tập mới — chỉ teacher sở hữu lớp mới được tạo
+   * Tạo bài tập mới — chỉ teacher sở hữu lớp mới được tạo.
+   * Nếu typeAssignment = "MULTIPLE_CHOICE", bắt buộc phải có questions[].
    */
   public async createAssignment(
     teacherId: string,
@@ -65,39 +95,46 @@ export class AssignmentService {
     data: {
       title: string;
       description?: string;
-      deadline: string; // ISO string từ frontend
+      deadline: string;
       typeAssignment?: string;
-      quizData?: string;
+      questions?: any[];
       files?: Express.Multer.File[];
     }
   ) {
-    // 1. Kiểm tra lớp tồn tại
+    // 1. Kiểm tra lớp tồn tại và teacher có quyền
     const classRecord = await prisma.classes.findUnique({
       where: { classId },
       select: { teacherId: true, className: true },
     });
     if (!classRecord) throw new NotFoundError("Không tìm thấy lớp học.");
-
-    // 2. Kiểm tra teacher có phải chủ lớp không
     if (classRecord.teacherId !== teacherId) {
       throw new ForbiddenError("Bạn không có quyền giao bài cho lớp học này.");
     }
 
-    // 3. Validate title
+    // 2. Validate
     if (!data.title || data.title.trim() === "") {
       throw new BadRequestError("Tiêu đề bài tập không được để trống.");
     }
-
-    // 4. Validate deadline
     const deadlineDate = new Date(data.deadline);
     if (isNaN(deadlineDate.getTime())) {
       throw new BadRequestError("Hạn nộp không hợp lệ.");
     }
 
-    // Lấy tên và email giáo viên
+    const typeAssignment = data.typeAssignment ?? "ESSAY";
+
+    // 3. Validate quiz questions nếu là MULTIPLE_CHOICE
+    let validatedQuestions: QuizQuestionInput[] | undefined;
+    if (typeAssignment === "MULTIPLE_CHOICE") {
+      if (!Array.isArray(data.questions) || data.questions.length === 0) {
+        throw new BadRequestError("Bài kiểm tra trắc nghiệm phải có ít nhất 1 câu hỏi.");
+      }
+      validatedQuestions = this.validateQuizQuestions(data.questions);
+    }
+
+    // 4. Lấy tên giáo viên
     const teacherRecord = await prisma.users.findUnique({
       where: { userId: teacherId },
-      select: { name: true, email: true },
+      select: { name: true },
     });
     const teacherName = teacherRecord?.name || "Giáo viên";
 
@@ -107,11 +144,15 @@ export class AssignmentService {
       title: data.title.trim(),
       description: data.description?.trim(),
       deadline: deadlineDate,
-      typeAssignment: data.typeAssignment ?? "ESSAY",
-      quizData: data.quizData,
+      typeAssignment,
     });
 
-    // Phát sự kiện assignment.created
+    // 6. Lưu quiz questions (nếu có)
+    if (validatedQuestions && validatedQuestions.length > 0) {
+      await this.assignmentRepo.upsertQuizQuestions(assignment.assignmentId, validatedQuestions);
+    }
+
+    // 7. Phát sự kiện
     eventBus.emit("assignment.created", {
       assignmentId: assignment.assignmentId,
       classId,
@@ -122,32 +163,22 @@ export class AssignmentService {
       teacherName,
     });
 
-    // 6. Upload files lên MinIO và tạo attachments
+    // 8. Upload files lên MinIO và tạo attachments
     if (data.files && data.files.length > 0) {
       const attachmentsToCreate: { fileName: string; fileUrl: string; fileSize?: number }[] = [];
-
       for (const file of data.files) {
         if (!file.buffer || file.buffer.length === 0) {
           throw new BadRequestError(`File "${file.originalname}" không hợp lệ hoặc rỗng.`);
         }
-        const uploadResult = await this.storageService.uploadFile(
-          file.buffer,
-          file.originalname,
-          file.mimetype
-        );
-        attachmentsToCreate.push({
-          fileName: file.originalname,
-          fileUrl: uploadResult.url,
-          fileSize: uploadResult.size,
-        });
+        const uploadResult = await this.storageService.uploadFile(file.buffer, file.originalname, file.mimetype);
+        attachmentsToCreate.push({ fileName: file.originalname, fileUrl: uploadResult.url, fileSize: uploadResult.size });
       }
-
       await this.assignmentRepo.createAttachments(assignment.assignmentId, attachmentsToCreate);
     }
 
-    // 7. Fetch lại để trả về đầy đủ kèm attachments
+    // 9. Fetch lại để trả về đầy đủ
     const created = await this.assignmentRepo.findAssignmentById(assignment.assignmentId);
-    return await this.serializeAttachments(created);
+    return this.serializeAttachments(created);
   }
 
   /**
@@ -164,17 +195,25 @@ export class AssignmentService {
     }
 
     const assignments = await this.assignmentRepo.findAssignmentsByClassId(classId);
-    const serializedAssignments = await Promise.all(
+    const serialized = await Promise.all(
       assignments.map(async (a: any) => {
-        const serialized = await this.serializeAttachments(a);
+        const s = await this.serializeAttachments(a);
         return {
-          ...serialized,
+          ...s,
           totalSubmissions: a._count?.Submissions ?? 0,
           _count: undefined,
         };
       })
     );
-    return serializedAssignments;
+    return serialized;
+  }
+
+  /**
+   * Lấy chi tiết một bài tập — teacher sở hữu lớp
+   */
+  public async getAssignmentById(teacherId: string, assignmentId: string) {
+    const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
+    return this.serializeAttachments(assignment);
   }
 
   /**
@@ -188,8 +227,8 @@ export class AssignmentService {
       description?: string;
       deadline?: string;
       typeAssignment?: string;
-      quizData?: string;
-      keepAttachmentIds?: string[]; // IDs của attachments cũ muốn giữ lại
+      questions?: any[];
+      keepAttachmentIds?: string[];
       files?: Express.Multer.File[];
     }
   ) {
@@ -206,16 +245,36 @@ export class AssignmentService {
       if (isNaN(deadlineDate.getTime())) throw new BadRequestError("Hạn nộp không hợp lệ.");
     }
 
+    const typeAssignment = data.typeAssignment ?? (assignment as any).typeAssignment;
+
+    // Validate quiz questions nếu cập nhật sang MULTIPLE_CHOICE
+    let validatedQuestions: QuizQuestionInput[] | undefined;
+    if (data.questions !== undefined) {
+      if (typeAssignment === "MULTIPLE_CHOICE") {
+        if (data.questions.length === 0) {
+          throw new BadRequestError("Bài kiểm tra trắc nghiệm phải có ít nhất 1 câu hỏi.");
+        }
+        validatedQuestions = this.validateQuizQuestions(data.questions);
+      }
+    }
+
     // Cập nhật thông tin bài tập
     await this.assignmentRepo.updateAssignment(assignmentId, {
       title: data.title?.trim(),
       description: data.description?.trim(),
       deadline: deadlineDate,
       typeAssignment: data.typeAssignment,
-      quizData: data.quizData,
     });
 
-    // Nếu có thay đổi về attachments (giữ lại hoặc thêm mới)
+    // Cập nhật quiz questions (nếu cần)
+    if (validatedQuestions !== undefined) {
+      await this.assignmentRepo.upsertQuizQuestions(assignmentId, validatedQuestions);
+    } else if (typeAssignment === "ESSAY" && data.typeAssignment === "ESSAY") {
+      // Chuyển sang ESSAY → xóa quiz questions cũ
+      await this.assignmentRepo.deleteQuizQuestions(assignmentId);
+    }
+
+    // Quản lý attachments
     const hasNewFiles = data.files && data.files.length > 0;
     const isManagingAttachments = data.keepAttachmentIds !== undefined || hasNewFiles;
 
@@ -223,17 +282,14 @@ export class AssignmentService {
       const oldAttachments = (assignment.AssignmentAttachments as any[]) || [];
       const keepIds = data.keepAttachmentIds ?? [];
 
-      // Xóa khỏi MinIO các file không được giữ lại
       for (const old of oldAttachments) {
         if (!keepIds.includes(old.attachmentId) && old.fileUrl) {
           await (this.storageService as MinioStorageService).deleteFile(old.fileUrl);
         }
       }
 
-      // Xóa tất cả attachments cũ trong DB
       await this.assignmentRepo.deleteAllAttachments(assignmentId);
 
-      // Tái tạo: giữ lại các attachment cũ được chỉ định
       const attachmentsToCreate: { fileName: string; fileUrl: string; fileSize?: number }[] = [];
 
       for (const old of oldAttachments) {
@@ -246,22 +302,13 @@ export class AssignmentService {
         }
       }
 
-      // Upload files mới lên MinIO
       if (hasNewFiles) {
         for (const file of data.files!) {
           if (!file.buffer || file.buffer.length === 0) {
             throw new BadRequestError(`File "${file.originalname}" không hợp lệ hoặc rỗng.`);
           }
-          const uploadResult = await this.storageService.uploadFile(
-            file.buffer,
-            file.originalname,
-            file.mimetype
-          );
-          attachmentsToCreate.push({
-            fileName: file.originalname,
-            fileUrl: uploadResult.url,
-            fileSize: uploadResult.size,
-          });
+          const uploadResult = await this.storageService.uploadFile(file.buffer, file.originalname, file.mimetype);
+          attachmentsToCreate.push({ fileName: file.originalname, fileUrl: uploadResult.url, fileSize: uploadResult.size });
         }
       }
 
@@ -271,7 +318,7 @@ export class AssignmentService {
     }
 
     const updated = await this.assignmentRepo.findAssignmentById(assignmentId);
-    return await this.serializeAttachments(updated);
+    return this.serializeAttachments(updated);
   }
 
   /**
@@ -279,16 +326,13 @@ export class AssignmentService {
    */
   public async deleteAttachment(teacherId: string, assignmentId: string, attachmentId: string) {
     const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
-
     const attachment = (assignment.AssignmentAttachments as any[])?.find(
       (a) => a.attachmentId === attachmentId
     );
     if (!attachment) throw new NotFoundError("Không tìm thấy file đính kèm.");
-
     if (attachment.fileUrl) {
       await (this.storageService as MinioStorageService).deleteFile(attachment.fileUrl);
     }
-
     return this.assignmentRepo.deleteAttachment(attachmentId);
   }
 
@@ -297,14 +341,11 @@ export class AssignmentService {
    */
   public async deleteAssignment(teacherId: string, assignmentId: string) {
     const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
-
-    // Xóa tất cả file trên MinIO trước
     for (const attachment of (assignment.AssignmentAttachments as any[]) ?? []) {
       if (attachment.fileUrl) {
         await (this.storageService as MinioStorageService).deleteFile(attachment.fileUrl);
       }
     }
-
     await this.assignmentRepo.deleteAllAttachments(assignmentId);
     return this.assignmentRepo.deleteAssignment(assignmentId);
   }
@@ -313,34 +354,20 @@ export class AssignmentService {
    * Lấy danh sách bài nộp của bài tập (chỉ dành cho giáo viên)
    */
   public async getSubmissionsByAssignmentId(teacherId: string, assignmentId: string) {
-    // 1. Kiểm tra giáo viên sở hữu bài tập
     await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
-
-    // 2. Lấy danh sách bài nộp từ repo
     const submissions = await this.assignmentRepo.findSubmissionsByAssignmentId(assignmentId);
-
-    // 3. Tạo instance MinioStorageService cho submissions để sinh presigned URL
     const submissionStorageService = new MinioStorageService("classroom-submissions");
 
-    // 4. Map và serialize dữ liệu (BigInt to string cho fileSize, sinh presignedUrl cho attachments)
-    const serializedSubmissions = await Promise.all(
+    const serialized = await Promise.all(
       submissions.map(async (sub: any) => {
         const processedAttachments = await Promise.all(
           sub.SubmissionAttachments.map(async (att: any) => {
             let presignedUrl = att.fileUri;
             let downloadUrl = att.fileUri;
             try {
-              presignedUrl = await submissionStorageService.getPresignedUrl(
-                att.fileUri,
-                false,
-                att.fileName || "download"
-              );
-              downloadUrl = await submissionStorageService.getPresignedUrl(
-                att.fileUri,
-                true,
-                att.fileName || "download"
-              );
-            } catch (err) {
+              presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+              downloadUrl = await submissionStorageService.getPresignedUrl(att.fileUri, true, att.fileName || "download");
+            } catch {
               console.warn("Could not generate presigned URL for submission file:", att.fileUri);
             }
             return {
@@ -348,7 +375,7 @@ export class AssignmentService {
               submissionId: att.submissionId,
               fileName: att.fileName,
               fileUrl: presignedUrl,
-              downloadUrl: downloadUrl,
+              downloadUrl,
               fileSize: att.fileSize != null ? att.fileSize.toString() : null,
               uploadedAt: att.uploadedAt,
             };
@@ -362,13 +389,10 @@ export class AssignmentService {
           submittedAt: sub.submittedAt,
           status: sub.status,
           student: sub.Users
-            ? {
-                userId: sub.Users.userId,
-                name: sub.Users.name,
-                email: sub.Users.email,
-              }
+            ? { userId: sub.Users.userId, name: sub.Users.name, email: sub.Users.email }
             : null,
           SubmissionAttachments: processedAttachments,
+          quizAnswers: sub.StudentQuizAnswers ?? [],
           grade:
             sub.Grades && sub.Grades.length > 0
               ? {
@@ -382,7 +406,7 @@ export class AssignmentService {
       })
     );
 
-    return serializedSubmissions;
+    return serialized;
   }
 
   /**
@@ -394,23 +418,13 @@ export class AssignmentService {
     submissionId: string,
     payload: { score: number; comment?: string }
   ) {
-    // 1. Kiểm tra giáo viên sở hữu bài tập
     const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
-
-    // 2. Tìm bài nộp
-    const submission = await prisma.submissions.findUnique({
-      where: { submissionId },
-    });
-
-    if (!submission) {
-      throw new NotFoundError("Không tìm thấy bài nộp.");
-    }
-
+    const submission = await prisma.submissions.findUnique({ where: { submissionId } });
+    if (!submission) throw new NotFoundError("Không tìm thấy bài nộp.");
     if (submission.assignmentId !== assignmentId) {
       throw new BadRequestError("Bài nộp không thuộc bài tập này.");
     }
 
-    // 3. Thực hiện chấm điểm
     return this.assignmentRepo.upsertGrade({
       submissionId,
       studentId: submission.studentId,

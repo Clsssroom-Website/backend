@@ -7,7 +7,16 @@ import { MinioStorageService } from "./storage/minioStorage.js";
 const storageService = new MinioStorageService("classroom-assignments");
 const submissionStorageService = new MinioStorageService("classroom-submissions");
 
-// Helper kiểm tra học sinh có nằm trong lớp học không
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface StudentAnswerInput {
+  questionId: string;
+  selectedOptionId: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Kiểm tra học sinh có nằm trong lớp học không */
 const ensureStudentEnrolled = async (studentId: string, classId: string) => {
   const isEnrolled = await ClassRepo.checkEnrollmentExists(classId, studentId);
   if (!isEnrolled) {
@@ -15,36 +24,51 @@ const ensureStudentEnrolled = async (studentId: string, classId: string) => {
   }
 };
 
-// Xem chi tiết lớp học dành cho học sinh
+/** Sinh presigned URL cho danh sách attachment bài nộp */
+const serializeSubmissionAttachments = async (attachments: any[]) => {
+  return Promise.all(
+    attachments.map(async (att) => {
+      let presignedUrl = att.fileUri;
+      let downloadUrl = att.fileUri;
+      try {
+        presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
+        downloadUrl = await submissionStorageService.getPresignedUrl(att.fileUri, true, att.fileName || "download");
+      } catch {
+        console.error("Lỗi khi tạo presigned URL cho bài nộp:", att.fileUri);
+      }
+      return {
+        ...att,
+        fileSize: att.fileSize ? att.fileSize.toString() : null,
+        fileUrl: presignedUrl,
+        downloadUrl,
+      };
+    })
+  );
+};
+
+// ─── Student Class & Assignment Views ────────────────────────────────────────
+
+/** Xem chi tiết lớp học dành cho học sinh */
 export const getClassDetailsForStudent = async (studentId: string, classId: string) => {
   const existingClass = await ClassRepo.findClassById(classId);
-  if (!existingClass) {
-    throw new NotFoundError("Không tìm thấy lớp học.");
-  }
-
+  if (!existingClass) throw new NotFoundError("Không tìm thấy lớp học.");
   await ensureStudentEnrolled(studentId, classId);
-
-  // Học sinh không cần xem joinCode/joinLink để bảo mật (tuỳ logic, có thể loại bỏ)
   const { joinCode, joinLink, ...classData } = existingClass;
   return classData;
 };
 
-// Lấy danh sách bài tập của 1 lớp học
+/** Lấy danh sách bài tập của 1 lớp học (học sinh) */
 export const getAssignmentsForStudent = async (studentId: string, classId: string) => {
   const existingClass = await ClassRepo.findClassById(classId);
-  if (!existingClass) {
-    throw new NotFoundError("Không tìm thấy lớp học.");
-  }
-
+  if (!existingClass) throw new NotFoundError("Không tìm thấy lớp học.");
   await ensureStudentEnrolled(studentId, classId);
 
   const assignments = await StudentRepo.findAssignmentsByClassId(classId);
 
-  // Parse fileUrl to presignedUrl for assignment attachments
-  const serializedAssignments = await Promise.all(
+  return Promise.all(
     assignments.map(async (assignment: any) => {
       let processedAttachments = [];
-      if (assignment.AssignmentAttachments && assignment.AssignmentAttachments.length > 0) {
+      if (assignment.AssignmentAttachments?.length > 0) {
         processedAttachments = await Promise.all(
           assignment.AssignmentAttachments.map(async (att: any) => {
             let presignedUrl = att.fileUrl;
@@ -52,14 +76,14 @@ export const getAssignmentsForStudent = async (studentId: string, classId: strin
             try {
               presignedUrl = await storageService.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
               downloadUrl = await storageService.getPresignedUrl(att.fileUrl, true, att.fileName || "download");
-            } catch (err) {
+            } catch {
               console.warn("Could not generate presigned URL for", att.fileUrl);
             }
             return {
               ...att,
               fileSize: att.fileSize != null ? att.fileSize.toString() : null,
-              fileUrl: presignedUrl, // Dùng presigned URL
-              downloadUrl: downloadUrl,
+              fileUrl: presignedUrl,
+              downloadUrl,
             };
           })
         );
@@ -70,117 +94,70 @@ export const getAssignmentsForStudent = async (studentId: string, classId: strin
       };
     })
   );
-
-  return serializedAssignments;
 };
 
-// Nộp bài tập
-export const submitAssignment = async (
-  studentId: string,
-  assignmentId: string,
-  files: { fileName: string; fileUri: string; fileSize: number }[],
-  quizAnswers?: any
-) => {
-  // 1. Kiểm tra bài tập tồn tại
+/** Lấy chi tiết bài tập (học sinh) — câu hỏi không có isCorrect */
+export const getAssignmentForStudent = async (studentId: string, assignmentId: string) => {
   const assignment = await StudentRepo.findAssignmentById(assignmentId);
-  if (!assignment) {
-    throw new NotFoundError("Không tìm thấy bài tập.");
+  if (!assignment) throw new NotFoundError("Không tìm thấy bài tập.");
+  await ensureStudentEnrolled(studentId, (assignment as any).Classes.classId);
+
+  // Sinh presigned URL cho attachments
+  let processedAttachments = [];
+  if ((assignment.AssignmentAttachments as any[])?.length > 0) {
+    processedAttachments = await Promise.all(
+      (assignment.AssignmentAttachments as any[]).map(async (att) => {
+        let presignedUrl = att.fileUrl;
+        let downloadUrl = att.fileUrl;
+        try {
+          presignedUrl = await storageService.getPresignedUrl(att.fileUrl, false, att.fileName || "download");
+          downloadUrl = await storageService.getPresignedUrl(att.fileUrl, true, att.fileName || "download");
+        } catch {
+          console.warn("Could not generate presigned URL for", att.fileUrl);
+        }
+        return { ...att, fileSize: att.fileSize != null ? att.fileSize.toString() : null, fileUrl: presignedUrl, downloadUrl };
+      })
+    );
   }
 
-  // 2. Kiểm tra học sinh có trong lớp không
-  await ensureStudentEnrolled(studentId, assignment.classId);
+  return {
+    ...assignment,
+    AssignmentAttachments: processedAttachments,
+  };
+};
 
-  // 3. Kiểm tra hạn nộp (Deadline)
+// ─── Quiz Submission ──────────────────────────────────────────────────────────
+
+/**
+ * Học sinh nộp bài tập ESSAY (có thể kèm file).
+ */
+export const submitEssayAssignment = async (
+  studentId: string,
+  assignmentId: string,
+  files: { fileName: string; fileUri: string; fileSize: number }[]
+) => {
+  const assignment = await StudentRepo.findAssignmentById(assignmentId);
+  if (!assignment) throw new NotFoundError("Không tìm thấy bài tập.");
+  await ensureStudentEnrolled(studentId, (assignment as any).Classes.classId);
+
+  if ((assignment as any).typeAssignment !== "ESSAY") {
+    throw new BadRequestError("Hãy dùng API nộp trắc nghiệm cho bài kiểm tra này.");
+  }
+
   const now = new Date();
   if (assignment.deadline && now > new Date(assignment.deadline)) {
     throw new BadRequestError("Đã quá hạn nộp bài.");
   }
 
-  // 4. Kiểm tra đã nộp chưa
   const existingSubmission = await StudentRepo.findSubmissionByStudentAndAssignment(studentId, assignmentId);
   if (existingSubmission) {
-    throw new BadRequestError("Bạn đã nộp bài tập này rồi. Nếu muốn nộp lại, vui lòng xóa bài cũ (chức năng đang cập nhật).");
+    throw new BadRequestError("Bạn đã nộp bài tập này rồi.");
   }
 
-  // 5. Tính toán điểm trắc nghiệm tự động (nếu là bài MULTIPLE_CHOICE)
-  let dbQuizAnswers: string | null = null;
-  let gradeData: {
-    gradeId: string;
-    score: number;
-    comment: string;
-    classId: string;
-  } | null = null;
-
-  if (assignment.typeAssignment === "MULTIPLE_CHOICE") {
-    if (!quizAnswers) {
-      throw new BadRequestError("Vui lòng cung cấp đáp án bài kiểm tra.");
-    }
-
-    let questions: any[] = [];
-    try {
-      questions = JSON.parse(assignment.quizData || "[]");
-    } catch (err) {
-      console.error("Lỗi khi parse quizData:", err);
-      throw new BadRequestError("Dữ liệu câu hỏi trắc nghiệm bị lỗi.");
-    }
-
-    if (questions.length === 0) {
-      throw new BadRequestError("Bài tập trắc nghiệm này chưa có câu hỏi.");
-    }
-
-    const studentAnswersArr = Array.isArray(quizAnswers)
-      ? quizAnswers
-      : typeof quizAnswers === "string"
-      ? JSON.parse(quizAnswers)
-      : [];
-
-    let correctCount = 0;
-    let totalQuestions = questions.length;
-    let totalScoreWeight = 0;
-    let studentScoreWeight = 0;
-
-    const gradedAnswers = questions.map((q) => {
-      const studentAns = studentAnswersArr.find(
-        (a: any) => a.questionId === q.id || a.questionId === q.questionId
-      );
-      const selectedAnswer = studentAns ? studentAns.selectedAnswer : "";
-      const isCorrect =
-        String(selectedAnswer).trim().toLowerCase() ===
-        String(q.correctAnswer).trim().toLowerCase();
-
-      if (isCorrect) {
-        correctCount++;
-        studentScoreWeight += q.score || 1;
-      }
-      totalScoreWeight += q.score || 1;
-
-      return {
-        questionId: q.id,
-        questionText: q.questionText,
-        selectedAnswer,
-        correctAnswer: q.correctAnswer,
-        isCorrect,
-      };
-    });
-
-    let calculatedScore = 0;
-    if (totalScoreWeight > 0) {
-      calculatedScore = (studentScoreWeight / totalScoreWeight) * 10;
-    } else {
-      calculatedScore = (correctCount / totalQuestions) * 10;
-    }
-    calculatedScore = Math.round(calculatedScore * 100) / 100;
-
-    dbQuizAnswers = JSON.stringify(gradedAnswers);
-    gradeData = {
-      gradeId: uuidv4(),
-      score: calculatedScore,
-      comment: `Hệ thống chấm tự động: Đúng ${correctCount}/${totalQuestions} câu.`,
-      classId: assignment.classId,
-    };
+  if (files.length === 0) {
+    throw new BadRequestError("Vui lòng đính kèm ít nhất 1 file cho bài tập tự luận.");
   }
 
-  // 6. Tạo Submission
   const submissionId = uuidv4();
   const attachments = files.map((file) => ({
     attachmentId: uuidv4(),
@@ -188,99 +165,182 @@ export const submitAssignment = async (
   }));
 
   const newSubmission = await StudentRepo.createSubmission(
-    {
-      submissionId,
-      assignmentId,
-      studentId,
-      status: assignment.typeAssignment === "MULTIPLE_CHOICE" ? "COMPLETED" : "SUBMITTED",
-      quizAnswers: dbQuizAnswers,
-    },
+    { submissionId, assignmentId, studentId, status: "SUBMITTED" },
     attachments,
+    [],
+    null
+  );
+
+  if (!newSubmission) throw new BadRequestError("Không thể tạo bài nộp.");
+
+  const attachmentsWithUrls = await serializeSubmissionAttachments(newSubmission.SubmissionAttachments);
+
+  return { ...newSubmission, SubmissionAttachments: attachmentsWithUrls };
+};
+
+/**
+ * Học sinh nộp bài trắc nghiệm.
+ * Chấm điểm tự động bằng cách tra cứu QuizOptions.isCorrect trong DB.
+ */
+export const submitQuizAssignment = async (
+  studentId: string,
+  assignmentId: string,
+  answers: StudentAnswerInput[]
+) => {
+  // 1. Kiểm tra bài tập
+  const assignment = await StudentRepo.findAssignmentById(assignmentId);
+  if (!assignment) throw new NotFoundError("Không tìm thấy bài tập.");
+
+  const classId = (assignment as any).Classes.classId;
+  await ensureStudentEnrolled(studentId, classId);
+
+  if ((assignment as any).typeAssignment !== "MULTIPLE_CHOICE") {
+    throw new BadRequestError("Bài tập này không phải dạng trắc nghiệm.");
+  }
+
+  // 2. Kiểm tra deadline
+  const now = new Date();
+  if (assignment.deadline && now > new Date(assignment.deadline)) {
+    throw new BadRequestError("Đã quá hạn nộp bài.");
+  }
+
+  // 3. Kiểm tra đã nộp chưa
+  const existingSubmission = await StudentRepo.findSubmissionByStudentAndAssignment(studentId, assignmentId);
+  if (existingSubmission) {
+    throw new BadRequestError("Bạn đã nộp bài tập này rồi.");
+  }
+
+  // 4. Lấy câu hỏi + đáp án đúng để chấm điểm (internal only)
+  const questions = await StudentRepo.findQuizQuestionsWithAnswers(assignmentId);
+  if (questions.length === 0) {
+    throw new BadRequestError("Bài tập trắc nghiệm này chưa có câu hỏi.");
+  }
+
+  // 5. Validate answers — mỗi questionId phải nằm trong bài tập
+  const validQuestionIds = new Set(questions.map((q) => q.questionId));
+  for (const ans of answers) {
+    if (!validQuestionIds.has(ans.questionId)) {
+      throw new BadRequestError(`questionId "${ans.questionId}" không thuộc bài tập này.`);
+    }
+  }
+
+  // 6. Chấm điểm
+  let totalPoints = 0;
+  let earnedPoints = 0;
+
+  for (const q of questions) {
+    totalPoints += q.points;
+    const studentAnswer = answers.find((a) => a.questionId === q.questionId);
+    if (studentAnswer) {
+      const correctOption = q.QuizOptions.find(
+        (o) => o.optionId === studentAnswer.selectedOptionId && o.isCorrect
+      );
+      if (correctOption) {
+        earnedPoints += q.points;
+      }
+    }
+  }
+
+  const calculatedScore =
+    totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 10 * 100) / 100 : 0;
+
+  const correctCount = answers.filter((ans) => {
+    const q = questions.find((q) => q.questionId === ans.questionId);
+    return q?.QuizOptions.find((o) => o.optionId === ans.selectedOptionId && o.isCorrect);
+  }).length;
+
+  // 7. Tạo Submission + StudentQuizAnswers + Grade (trong 1 transaction)
+  const submissionId = uuidv4();
+  const gradeData = {
+    gradeId: uuidv4(),
+    score: calculatedScore,
+    comment: `Hệ thống chấm tự động: Đúng ${correctCount}/${questions.length} câu. Điểm: ${calculatedScore}/10.`,
+    classId,
+  };
+
+  const newSubmission = await StudentRepo.createSubmission(
+    { submissionId, assignmentId, studentId, status: "COMPLETED" },
+    [],
+    answers,
     gradeData
   );
 
-  if (!newSubmission) {
-    throw new BadRequestError("Không thể tạo bài nộp.");
-  }
+  if (!newSubmission) throw new BadRequestError("Không thể tạo bài nộp.");
 
-  const attachmentsWithUrls = await Promise.all(
-    newSubmission.SubmissionAttachments.map(async (att) => {
-      let presignedUrl = att.fileUri;
-      let downloadUrl = att.fileUri;
-      try {
-        presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
-        downloadUrl = await submissionStorageService.getPresignedUrl(att.fileUri, true, att.fileName || "download");
-      } catch (err) {
-        console.error("Lỗi khi tạo presigned URL cho bài nộp mới:", err);
-      }
-      return {
-        ...att,
-        fileSize: att.fileSize ? att.fileSize.toString() : null,
-        fileUrl: presignedUrl,
-        downloadUrl: downloadUrl,
-      };
-    })
-  );
+  // 8. Chuẩn bị kết quả trả về (bao gồm thông tin đúng/sai)
+  const answersWithResult = (newSubmission.StudentQuizAnswers ?? []).map((ans: any) => {
+    const q = questions.find((q) => q.questionId === ans.questionId);
+    const selectedOption = q?.QuizOptions.find((o) => o.optionId === ans.selectedOptionId);
+    const correctOption = q?.QuizOptions.find((o) => o.isCorrect);
+
+    return {
+      questionId: ans.questionId,
+      questionText: ans.QuizQuestions?.questionText,
+      selectedOptionId: ans.selectedOptionId,
+      selectedOptionText: selectedOption?.optionText ?? ans.QuizOptions?.optionText,
+      correctOptionId: correctOption?.optionId,
+      isCorrect: selectedOption?.optionId === correctOption?.optionId,
+    };
+  });
 
   return {
-    ...newSubmission,
-    SubmissionAttachments: attachmentsWithUrls,
+    submissionId: newSubmission.submissionId,
+    assignmentId: newSubmission.assignmentId,
+    studentId: newSubmission.studentId,
+    status: newSubmission.status,
+    submittedAt: newSubmission.submittedAt,
+    score: calculatedScore,
+    comment: gradeData.comment,
+    totalQuestions: questions.length,
+    correctAnswers: correctCount,
+    answers: answersWithResult,
   };
 };
 
-// Lấy thông tin bài nộp và điểm
+// ─── Submission & Grade View ──────────────────────────────────────────────────
+
+/** Lấy thông tin bài nộp và điểm của học sinh */
 export const getSubmissionAndGrade = async (studentId: string, assignmentId: string) => {
-  // 1. Kiểm tra bài tập tồn tại
   const assignment = await StudentRepo.findAssignmentById(assignmentId);
-  if (!assignment) {
-    throw new NotFoundError("Không tìm thấy bài tập.");
-  }
+  if (!assignment) throw new NotFoundError("Không tìm thấy bài tập.");
+  await ensureStudentEnrolled(studentId, (assignment as any).Classes.classId);
 
-  // 2. Kiểm tra học sinh có trong lớp không
-  await ensureStudentEnrolled(studentId, assignment.classId);
-
-  // 3. Lấy Submission
   const submission = await StudentRepo.findSubmissionByStudentAndAssignment(studentId, assignmentId);
-  if (!submission) {
-    return null; // Chưa nộp bài
-  }
+  if (!submission) return null;
 
-  const attachmentsWithUrls = await Promise.all(
-    submission.SubmissionAttachments.map(async (att) => {
-      let presignedUrl = att.fileUri;
-      let downloadUrl = att.fileUri;
-      try {
-        presignedUrl = await submissionStorageService.getPresignedUrl(att.fileUri, false, att.fileName || "download");
-        downloadUrl = await submissionStorageService.getPresignedUrl(att.fileUri, true, att.fileName || "download");
-      } catch (err) {
-        console.error("Lỗi khi tạo presigned URL cho bài nộp:", err);
-      }
-      return {
-        ...att,
-        fileSize: att.fileSize ? att.fileSize.toString() : null,
-        fileUrl: presignedUrl,
-        downloadUrl: downloadUrl,
-      };
-    })
-  );
+  const attachmentsWithUrls = await serializeSubmissionAttachments(submission.SubmissionAttachments);
+  const firstGrade = submission.Grades?.length > 0 ? submission.Grades[0] : null;
 
-  const firstGrade = submission.Grades && submission.Grades.length > 0 ? submission.Grades[0] : null;
+  // Định dạng câu trả lời trắc nghiệm
+  const quizAnswers = (submission.StudentQuizAnswers ?? []).map((ans: any) => ({
+    questionId: ans.questionId,
+    questionText: ans.QuizQuestions?.questionText,
+    selectedOptionId: ans.selectedOptionId,
+    selectedOptionText: ans.QuizOptions?.optionText,
+    points: ans.QuizQuestions?.points,
+  }));
 
   return {
-    ...submission,
+    submissionId: submission.submissionId,
+    assignmentId: submission.assignmentId,
+    studentId: submission.studentId,
+    status: submission.status,
+    submittedAt: submission.submittedAt,
     SubmissionAttachments: attachmentsWithUrls,
+    quizAnswers,
     grade: firstGrade
       ? {
-        gradeId: firstGrade.gradeId,
-        score: firstGrade.score,
-        comment: firstGrade.comment,
-        gradedAt: firstGrade.gradedAt,
-      }
+          gradeId: firstGrade.gradeId,
+          score: firstGrade.score,
+          comment: firstGrade.comment,
+          gradedAt: firstGrade.gradedAt,
+        }
       : null,
   };
 };
 
-// Lấy thông tin Dashboard cho học sinh
+// ─── Student Dashboard ────────────────────────────────────────────────────────
+
 export const getStudentDashboard = async (studentId: string) => {
   const [
     totalClasses,
@@ -331,8 +391,6 @@ export const getStudentDashboard = async (studentId: string) => {
   const upcomingAssignments = rawUpcoming.map((a) => {
     const diffMs = new Date(a.deadline).getTime() - Date.now();
     const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    const urgency = diffDays < URGENT_THRESHOLD_DAYS ? "urgent" : "upcoming";
-
     return {
       assignmentId: a.assignmentId,
       title: a.title,
@@ -340,7 +398,7 @@ export const getStudentDashboard = async (studentId: string) => {
       className: a.Classes.className,
       deadline: a.deadline,
       typeAssignment: a.typeAssignment,
-      urgency,
+      urgency: diffDays < URGENT_THRESHOLD_DAYS ? "urgent" : "upcoming",
     };
   });
 
@@ -354,23 +412,14 @@ export const getStudentDashboard = async (studentId: string) => {
     gradedAt: act.Grades[0]?.gradedAt ?? null,
   }));
 
-  return {
-    stats,
-    classes,
-    recentGrades,
-    upcomingAssignments,
-    recentActivities,
-  };
+  return { stats, classes, recentGrades, upcomingAssignments, recentActivities };
 };
 
-// Lấy danh sách điểm số của học sinh trong một lớp
+// ─── Grade View (per class) ───────────────────────────────────────────────────
+
 export const getGradesForStudent = async (studentId: string, classId: string) => {
   const existingClass = await ClassRepo.findClassById(classId);
-  if (!existingClass) {
-    throw new NotFoundError("Không tìm thấy lớp học.");
-  }
-
+  if (!existingClass) throw new NotFoundError("Không tìm thấy lớp học.");
   await ensureStudentEnrolled(studentId, classId);
-
   return StudentRepo.findGradesByStudentAndClass(studentId, classId);
 };

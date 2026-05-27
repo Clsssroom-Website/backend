@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 import { requireRole } from "../middlewares/roleMiddleware.js";
 import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
@@ -7,9 +6,24 @@ import { assignmentController } from "../controllers/assignmentController.js";
 
 const router = Router();
 
-router.get("/:id/assignments", authMiddleware, assignmentController.getAssignments.bind(assignmentController));
+// ─── Teacher: Assignment CRUD ──────────────────────────────────────────────────
 
-// POST /api/v1/classes/:id/assignments
+// GET /api/v1/classes/:id/assignments — danh sách bài tập của lớp
+router.get(
+  "/:id/assignments",
+  authMiddleware,
+  assignmentController.getAssignments.bind(assignmentController)
+);
+
+// GET /api/v1/classes/:id/assignments/:assignmentId — chi tiết bài tập (bao gồm quiz + isCorrect)
+router.get(
+  "/:id/assignments/:assignmentId",
+  authMiddleware,
+  requireRole(["teacher"]),
+  assignmentController.getAssignmentDetail.bind(assignmentController)
+);
+
+// POST /api/v1/classes/:id/assignments — tạo bài tập mới
 router.post(
   "/:id/assignments",
   authMiddleware,
@@ -18,7 +32,7 @@ router.post(
   assignmentController.createAssignment.bind(assignmentController)
 );
 
-// PUT  /api/v1/classes/:id/assignments/:assignmentId
+// PUT /api/v1/classes/:id/assignments/:assignmentId — cập nhật bài tập
 router.put(
   "/:id/assignments/:assignmentId",
   authMiddleware,
@@ -27,7 +41,7 @@ router.put(
   assignmentController.updateAssignment.bind(assignmentController)
 );
 
-// DELETE /api/v1/classes/:id/assignments/:assignmentId
+// DELETE /api/v1/classes/:id/assignments/:assignmentId — xóa bài tập
 router.delete(
   "/:id/assignments/:assignmentId",
   authMiddleware,
@@ -35,7 +49,7 @@ router.delete(
   assignmentController.deleteAssignment.bind(assignmentController)
 );
 
-// DELETE /api/v1/classes/:id/assignments/:assignmentId/attachments/:attachmentId
+// DELETE /api/v1/classes/:id/assignments/:assignmentId/attachments/:attachmentId — xóa 1 file đính kèm
 router.delete(
   "/:id/assignments/:assignmentId/attachments/:attachmentId",
   authMiddleware,
@@ -43,7 +57,9 @@ router.delete(
   assignmentController.deleteAttachment.bind(assignmentController)
 );
 
-// GET /api/v1/classes/:id/assignments/:assignmentId/submissions
+// ─── Teacher: Submission & Grading ────────────────────────────────────────────
+
+// GET /api/v1/classes/:id/assignments/:assignmentId/submissions — xem bài nộp
 router.get(
   "/:id/assignments/:assignmentId/submissions",
   authMiddleware,
@@ -51,7 +67,7 @@ router.get(
   assignmentController.getSubmissions.bind(assignmentController)
 );
 
-// POST /api/v1/classes/:id/assignments/:assignmentId/submissions/:submissionId/grade
+// POST /api/v1/classes/:id/assignments/:assignmentId/submissions/:submissionId/grade — chấm điểm
 router.post(
   "/:id/assignments/:assignmentId/submissions/:submissionId/grade",
   authMiddleware,

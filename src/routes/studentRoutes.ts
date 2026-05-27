@@ -4,6 +4,7 @@ import {
   getEnrolledClasses,
   getClassDetails,
   getAssignments,
+  getAssignmentDetail,
   submitAssignment,
   submitQuizAssignment,
   getSubmissionAndGrade,
@@ -12,34 +13,49 @@ import {
 } from "../controllers/studentController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
+
 const router = Router();
 
-// GET /api/v1/students/dashboard - Lấy dữ liệu Dashboard cho học sinh
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+// GET /api/v1/students/dashboard
 router.get("/dashboard", authMiddleware, getDashboard);
 
-// POST /api/v1/students/classes/join - Học sinh tham gia lớp học
+// ─── Class ────────────────────────────────────────────────────────────────────
+
+// POST /api/v1/students/classes/join
 router.post("/classes/join", authMiddleware, joinClass);
 
-// GET /api/v1/students/classes - Lấy danh sách lớp đã tham gia
+// GET /api/v1/students/classes
 router.get("/classes", authMiddleware, getEnrolledClasses);
 
-// GET /api/v1/students/classes/:classId - Xem chi tiết lớp học
+// GET /api/v1/students/classes/:classId
 router.get("/classes/:classId", authMiddleware, getClassDetails);
 
-// GET /api/v1/students/classes/:classId/grades - Xem điểm của học sinh trong lớp học
+// GET /api/v1/students/classes/:classId/grades
 router.get("/classes/:classId/grades", authMiddleware, getGrades);
 
-// GET /api/v1/students/classes/:classId/assignments - Xem danh sách bài tập của lớp
+// GET /api/v1/students/classes/:classId/assignments
 router.get("/classes/:classId/assignments", authMiddleware, getAssignments);
 
+// ─── Assignment Detail ────────────────────────────────────────────────────────
 
-// POST /api/v1/students/assignments/:assignmentId/submit - Nộp bài tập (file upload)
+// GET /api/v1/students/assignments/:assignmentId
+// Xem chi tiết bài tập (quiz questions không có isCorrect)
+router.get("/assignments/:assignmentId", authMiddleware, getAssignmentDetail);
+
+// ─── Submission ───────────────────────────────────────────────────────────────
+
+// POST /api/v1/students/assignments/:assignmentId/submit
+// Nộp bài tự luận (ESSAY) kèm file
 router.post("/assignments/:assignmentId/submit", authMiddleware, uploadMultipleMiddleware, submitAssignment);
 
-// POST /api/v1/students/assignments/:assignmentId/submit-quiz - Nộp bài trắc nghiệm (JSON, không có file)
+// POST /api/v1/students/assignments/:assignmentId/submit-quiz
+// Nộp bài trắc nghiệm: body { answers: [{questionId, selectedOptionId}] }
 router.post("/assignments/:assignmentId/submit-quiz", authMiddleware, submitQuizAssignment);
 
-// GET /api/v1/students/assignments/:assignmentId/submission - Xem bài nộp và điểm
+// GET /api/v1/students/assignments/:assignmentId/submission
+// Xem bài nộp và điểm số
 router.get("/assignments/:assignmentId/submission", authMiddleware, getSubmissionAndGrade);
 
 export default router;

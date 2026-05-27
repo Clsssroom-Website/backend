@@ -5,15 +5,17 @@ import { BadRequestError, ForbiddenError, UnauthorizedError } from "../errors/in
 
 const assignmentService = new AssignmentService();
 
-/**
- * Helper: Lấy teacherId và xác thực role teacher
- */
+// ─── Guards ───────────────────────────────────────────────────────────────────
+
+/** Lấy teacherId và xác thực role teacher */
 const ensureTeacher = (req: AuthRequest): string => {
   const user = req.user;
   if (!user?.userId) throw new UnauthorizedError("Vui lòng đăng nhập.");
   if (user.role !== "teacher") throw new ForbiddenError("Chỉ Giáo viên mới được thực hiện hành động này.");
   return user.userId;
 };
+
+// ─── Controller ───────────────────────────────────────────────────────────────
 
 export class AssignmentController {
   /**
@@ -24,13 +26,23 @@ export class AssignmentController {
     try {
       const teacherId = ensureTeacher(req);
       const classId = req.params.id as string;
-
       const assignments = await assignmentService.getAssignmentsByClassId(teacherId, classId);
-      res.status(200).json({
-        success: true,
-        message: "Lấy danh sách bài tập thành công!",
-        data: assignments,
-      });
+      res.status(200).json({ success: true, message: "Lấy danh sách bài tập thành công!", data: assignments });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/v1/classes/:id/assignments/:assignmentId
+   * Teacher lấy chi tiết bài tập (bao gồm quiz questions + isCorrect)
+   */
+  public async getAssignmentDetail(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teacherId = ensureTeacher(req);
+      const assignmentId = req.params.assignmentId as string;
+      const assignment = await assignmentService.getAssignmentById(teacherId, assignmentId);
+      res.status(200).json({ success: true, message: "Lấy chi tiết bài tập thành công!", data: assignment });
     } catch (error) {
       next(error);
     }
@@ -38,20 +50,33 @@ export class AssignmentController {
 
   /**
    * POST /api/v1/classes/:id/assignments
-   * Teacher tạo bài tập mới (có thể kèm file đính kèm)
+   * Teacher tạo bài tập mới.
+   * Body (multipart/form-data):
+   *   - title, description, deadline, typeAssignment (required)
+   *   - questions: JSON string (array) — bắt buộc nếu typeAssignment = "MULTIPLE_CHOICE"
+   *   - files: file đính kèm (tùy chọn, chỉ dùng cho ESSAY)
    */
   public async createAssignment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const teacherId = ensureTeacher(req);
       const classId = req.params.id as string;
 
-      const { title, description, deadline, typeAssignment, quizData } = req.body;
+      const { title, description, deadline, typeAssignment } = req.body;
 
       if (!title || String(title).trim() === "") {
         throw new BadRequestError("Tiêu đề bài tập không được để trống.");
       }
       if (!deadline) {
         throw new BadRequestError("Hạn nộp bài không được để trống.");
+      }
+
+      // Parse questions nếu được gửi dưới dạng JSON string
+      let questions: any[] | undefined;
+      if (req.body.questions !== undefined) {
+        questions =
+          typeof req.body.questions === "string"
+            ? JSON.parse(req.body.questions)
+            : req.body.questions;
       }
 
       const files = req.files as Express.Multer.File[] | undefined;
@@ -61,15 +86,11 @@ export class AssignmentController {
         description,
         deadline,
         typeAssignment,
-        quizData,
+        questions,
         files,
       });
 
-      res.status(201).json({
-        success: true,
-        message: "Tạo bài tập thành công!",
-        data: assignment,
-      });
+      res.status(201).json({ success: true, message: "Tạo bài tập thành công!", data: assignment });
     } catch (error) {
       next(error);
     }
@@ -78,23 +99,35 @@ export class AssignmentController {
   /**
    * PUT /api/v1/classes/:id/assignments/:assignmentId
    * Teacher cập nhật bài tập
-   * Body: { title?, description?, deadline?, typeAssignment?, keepAttachmentIds?: string[] }
-   * Files: multipart/form-data với field "attachments"
+   * Body (multipart/form-data):
+   *   - title?, description?, deadline?, typeAssignment?
+   *   - questions?: JSON string (array) — cập nhật toàn bộ câu hỏi
+   *   - keepAttachmentIds?: JSON string (array of IDs)
+   *   - files?: file đính kèm mới
    */
   public async updateAssignment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const teacherId = ensureTeacher(req);
       const assignmentId = req.params.assignmentId as string;
 
-      const { title, description, deadline, typeAssignment, quizData } = req.body;
+      const { title, description, deadline, typeAssignment } = req.body;
 
-      // Danh sách attachment IDs muốn giữ lại (gửi từ frontend)
+      // Parse keepAttachmentIds
       let keepAttachmentIds: string[] | undefined;
       if (req.body.keepAttachmentIds !== undefined) {
         keepAttachmentIds =
           typeof req.body.keepAttachmentIds === "string"
             ? JSON.parse(req.body.keepAttachmentIds)
             : req.body.keepAttachmentIds;
+      }
+
+      // Parse questions
+      let questions: any[] | undefined;
+      if (req.body.questions !== undefined) {
+        questions =
+          typeof req.body.questions === "string"
+            ? JSON.parse(req.body.questions)
+            : req.body.questions;
       }
 
       const files = req.files as Express.Multer.File[] | undefined;
@@ -104,16 +137,12 @@ export class AssignmentController {
         description,
         deadline,
         typeAssignment,
-        quizData,
+        questions,
         keepAttachmentIds,
         files,
       });
 
-      res.status(200).json({
-        success: true,
-        message: "Cập nhật bài tập thành công!",
-        data: updated,
-      });
+      res.status(200).json({ success: true, message: "Cập nhật bài tập thành công!", data: updated });
     } catch (error) {
       next(error);
     }
@@ -121,13 +150,12 @@ export class AssignmentController {
 
   /**
    * DELETE /api/v1/classes/:id/assignments/:assignmentId
-   * Teacher xóa bài tập (kèm tất cả file trên MinIO)
+   * Teacher xóa bài tập
    */
   public async deleteAssignment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const teacherId = ensureTeacher(req);
       const assignmentId = req.params.assignmentId as string;
-
       await assignmentService.deleteAssignment(teacherId, assignmentId);
       res.status(200).json({ success: true, message: "Xóa bài tập thành công!" });
     } catch (error) {
@@ -137,14 +165,13 @@ export class AssignmentController {
 
   /**
    * DELETE /api/v1/classes/:id/assignments/:assignmentId/attachments/:attachmentId
-   * Teacher xóa một file đính kèm của bài tập (kèm file trên MinIO)
+   * Teacher xóa một file đính kèm
    */
   public async deleteAttachment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const teacherId = ensureTeacher(req);
       const assignmentId = req.params.assignmentId as string;
       const attachmentId = req.params.attachmentId as string;
-
       await assignmentService.deleteAttachment(teacherId, assignmentId, attachmentId);
       res.status(200).json({ success: true, message: "Xóa file đính kèm thành công!" });
     } catch (error) {
@@ -160,13 +187,8 @@ export class AssignmentController {
     try {
       const teacherId = ensureTeacher(req);
       const assignmentId = req.params.assignmentId as string;
-
       const submissions = await assignmentService.getSubmissionsByAssignmentId(teacherId, assignmentId);
-      res.status(200).json({
-        success: true,
-        message: "Lấy danh sách bài nộp thành công!",
-        data: submissions,
-      });
+      res.status(200).json({ success: true, message: "Lấy danh sách bài nộp thành công!", data: submissions });
     } catch (error) {
       next(error);
     }
@@ -175,6 +197,7 @@ export class AssignmentController {
   /**
    * POST /api/v1/classes/:id/assignments/:assignmentId/submissions/:submissionId/grade
    * Teacher chấm điểm bài nộp
+   * Body: { score: number (0-10), comment?: string }
    */
   public async gradeSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -194,10 +217,7 @@ export class AssignmentController {
         comment,
       });
 
-      res.status(200).json({
-        success: true,
-        message: "Chấm điểm thành công!",
-      });
+      res.status(200).json({ success: true, message: "Chấm điểm thành công!" });
     } catch (error) {
       next(error);
     }

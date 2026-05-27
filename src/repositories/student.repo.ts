@@ -1,22 +1,69 @@
 import prisma from "../config/prisma.js";
+import { v4 as uuidv4 } from "uuid";
 
-// Lấy danh sách bài tập của 1 lớp học
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface StudentAnswerInput {
+  questionId: string;
+  selectedOptionId: string;
+}
+
+// ─── Assignment Queries (Student-facing) ─────────────────────────────────────
+
+/**
+ * Lấy danh sách bài tập của 1 lớp học (dành cho học sinh)
+ * Trả về câu hỏi kèm options nhưng KHÔNG bao gồm isCorrect
+ */
 export const findAssignmentsByClassId = async (classId: string) => {
   return prisma.assignments.findMany({
     where: { classId },
     orderBy: { createdAt: "desc" },
     include: {
       AssignmentAttachments: true,
+      QuizQuestions: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          questionId: true,
+          questionText: true,
+          points: true,
+          sortOrder: true,
+          QuizOptions: {
+            select: {
+              optionId: true,
+              optionText: true,
+              // isCorrect bị ẩn khỏi view của học sinh
+            },
+          },
+        },
+      },
     },
   });
 };
 
-// Lấy chi tiết bài tập
+/**
+ * Lấy chi tiết bài tập (dành cho học sinh — không lộ isCorrect)
+ */
 export const findAssignmentById = async (assignmentId: string) => {
   return prisma.assignments.findUnique({
     where: { assignmentId },
     include: {
       AssignmentAttachments: true,
+      QuizQuestions: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          questionId: true,
+          questionText: true,
+          points: true,
+          sortOrder: true,
+          QuizOptions: {
+            select: {
+              optionId: true,
+              optionText: true,
+              // isCorrect bị ẩn khỏi view của học sinh
+            },
+          },
+        },
+      },
       Classes: {
         select: {
           classId: true,
@@ -28,39 +75,88 @@ export const findAssignmentById = async (assignmentId: string) => {
   });
 };
 
-// Tìm bài nộp của 1 học sinh cho 1 bài tập
+/**
+ * Lấy câu hỏi kèm đáp án đúng (dùng nội bộ để chấm điểm — không trả về cho client)
+ */
+export const findQuizQuestionsWithAnswers = async (assignmentId: string) => {
+  return prisma.quizQuestions.findMany({
+    where: { assignmentId },
+    orderBy: { sortOrder: "asc" },
+    include: {
+      QuizOptions: {
+        select: {
+          optionId: true,
+          optionText: true,
+          isCorrect: true,
+        },
+      },
+    },
+  });
+};
+
+// ─── Submission Queries ────────────────────────────────────────────────────────
+
+/**
+ * Tìm bài nộp của 1 học sinh cho 1 bài tập
+ */
 export const findSubmissionByStudentAndAssignment = async (studentId: string, assignmentId: string) => {
   return prisma.submissions.findFirst({
-    where: {
-      studentId,
-      assignmentId,
-    },
+    where: { studentId, assignmentId },
     include: {
       SubmissionAttachments: true,
+      StudentQuizAnswers: {
+        include: {
+          QuizQuestions: {
+            select: { questionId: true, questionText: true, points: true },
+          },
+          QuizOptions: {
+            select: { optionId: true, optionText: true },
+          },
+        },
+      },
       Grades: true,
     },
   });
 };
 
-// Lấy chi tiết 1 bài nộp (dùng khi cần thiết)
+/**
+ * Lấy chi tiết 1 bài nộp theo ID
+ */
 export const findSubmissionById = async (submissionId: string) => {
   return prisma.submissions.findUnique({
     where: { submissionId },
     include: {
       SubmissionAttachments: true,
+      StudentQuizAnswers: {
+        include: {
+          QuizQuestions: {
+            select: { questionId: true, questionText: true, points: true },
+          },
+          QuizOptions: {
+            select: { optionId: true, optionText: true },
+          },
+        },
+      },
       Grades: true,
     },
   });
 };
 
-// Tạo bài nộp
+// ─── Submission Mutations ──────────────────────────────────────────────────────
+
+/**
+ * Tạo bài nộp trong một transaction:
+ * 1. Tạo Submission
+ * 2. Lưu file đính kèm (nếu có)
+ * 3. Lưu câu trả lời trắc nghiệm (nếu có)
+ * 4. Tạo Grade tự động (nếu là bài trắc nghiệm)
+ */
 export const createSubmission = async (
   submissionData: {
     submissionId: string;
     assignmentId: string;
     studentId: string;
     status: string;
-    quizAnswers?: string | null;
   },
   attachments: {
     attachmentId: string;
@@ -68,6 +164,7 @@ export const createSubmission = async (
     fileUri: string;
     fileSize: number;
   }[],
+  studentAnswers: StudentAnswerInput[] = [],
   gradeData?: {
     gradeId: string;
     score: number;
@@ -76,26 +173,42 @@ export const createSubmission = async (
   } | null
 ) => {
   return prisma.$transaction(async (tx) => {
-    // Lưu thông tin submission
+    // 1. Tạo Submission
     const submission = await tx.submissions.create({
-      data: submissionData,
+      data: {
+        submissionId: submissionData.submissionId,
+        assignmentId: submissionData.assignmentId,
+        studentId: submissionData.studentId,
+        status: submissionData.status,
+      },
     });
 
-    // Lưu file đính kèm (nếu có)
-    if (attachments && attachments.length > 0) {
-      const attachmentsData = attachments.map((file) => ({
-        attachmentId: file.attachmentId,
-        submissionId: submissionData.submissionId,
-        fileName: file.fileName,
-        fileUri: file.fileUri,
-        fileSize: file.fileSize ? BigInt(file.fileSize) : null,
-      }));
+    // 2. Lưu file đính kèm (nếu có)
+    if (attachments.length > 0) {
       await tx.submissionAttachments.createMany({
-        data: attachmentsData,
+        data: attachments.map((file) => ({
+          attachmentId: file.attachmentId,
+          submissionId: submissionData.submissionId,
+          fileName: file.fileName,
+          fileUri: file.fileUri,
+          fileSize: file.fileSize ? BigInt(file.fileSize) : null,
+        })),
       });
     }
 
-    // Lưu điểm tự động (nếu có - dùng cho bài trắc nghiệm)
+    // 3. Lưu câu trả lời trắc nghiệm (nếu có)
+    if (studentAnswers.length > 0) {
+      await tx.studentQuizAnswers.createMany({
+        data: studentAnswers.map((ans) => ({
+          studentAnswerId: uuidv4(),
+          submissionId: submissionData.submissionId,
+          questionId: ans.questionId,
+          selectedOptionId: ans.selectedOptionId,
+        })),
+      });
+    }
+
+    // 4. Lưu điểm tự động (nếu là bài trắc nghiệm)
     if (gradeData) {
       await tx.grades.create({
         data: {
@@ -110,18 +223,28 @@ export const createSubmission = async (
       });
     }
 
-    // Trả về submission bao gồm các file đính kèm
+    // 5. Trả về submission đầy đủ
     return tx.submissions.findUnique({
       where: { submissionId: submission.submissionId },
-      include: { 
+      include: {
         SubmissionAttachments: true,
+        StudentQuizAnswers: {
+          include: {
+            QuizQuestions: {
+              select: { questionId: true, questionText: true, points: true },
+            },
+            QuizOptions: {
+              select: { optionId: true, optionText: true },
+            },
+          },
+        },
         Grades: true,
       },
     });
   });
 };
 
-// ─── Student Dashboard Queries ──────────────────────────────────────────────────
+// ─── Student Dashboard Queries ────────────────────────────────────────────────
 
 export const countEnrolledClasses = async (studentId: string): Promise<number> => {
   return prisma.classEnrollments.count({
@@ -264,22 +387,16 @@ export const findRecentActivitiesByStudent = async (studentId: string, limit = 1
 
 export const findGradesByStudentAndClass = async (studentId: string, classId: string) => {
   return prisma.grades.findMany({
-    where: {
-      studentId,
-      classId,
-    },
-    orderBy: {
-      gradedAt: "desc",
-    },
+    where: { studentId, classId },
+    orderBy: { gradedAt: "desc" },
     include: {
       Assignments: {
         select: {
           title: true,
           deadline: true,
+          typeAssignment: true,
         },
       },
     },
   });
 };
-
-
