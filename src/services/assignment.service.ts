@@ -392,7 +392,13 @@ export class AssignmentService {
             ? { userId: sub.Users.userId, name: sub.Users.name, email: sub.Users.email }
             : null,
           SubmissionAttachments: processedAttachments,
-          quizAnswers: sub.StudentQuizAnswers ?? [],
+          quizAnswers: (sub.StudentQuizAnswers ?? []).map((ans: any) => ({
+            questionId: ans.questionId,
+            selectedOptionId: ans.selectedOptionId,
+            selectedOptionText: ans.QuizOptions?.optionText || "",
+            questionText: ans.QuizQuestions?.questionText || "",
+            isCorrect: ans.QuizOptions?.isCorrect || false,
+          })),
           grade:
             sub.Grades && sub.Grades.length > 0
               ? {

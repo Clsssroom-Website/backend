@@ -52,3 +52,23 @@ export const getDashboardStats = async (
     next(error);
   }
 };
+
+/**
+ * GET /api/v1/dashboard/submissions-to-grade
+ * Trả về danh sách bài nộp cần chấm có phân trang.
+ */
+export const getPendingSubmissionsToGrade = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const teacherId = ensureTeacher(req);
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const data = await DashboardService.getPendingEssaySubmissionsPaginated(teacherId, page, limit);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};

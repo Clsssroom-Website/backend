@@ -187,3 +187,56 @@ export const findRecentSubmissionsByTeacherId = async (teacherId: string, limit 
     },
   });
 };
+
+/** Lấy danh sách bài nộp ESSAY chưa có điểm có phân trang */
+export const findPendingEssaySubmissionsPaginated = async (
+  teacherId: string,
+  page: number,
+  limit: number
+) => {
+  const classes = await prisma.classes.findMany({
+    where: { teacherId },
+    select: { classId: true },
+  });
+  const classIds = classes.map((c) => c.classId);
+  if (classIds.length === 0) return { total: 0, submissions: [] };
+
+  const whereClause = {
+    Assignments: {
+      classId: { in: classIds },
+      typeAssignment: "ESSAY",
+    },
+    Grades: { none: {} },
+  };
+
+  const [total, submissions] = await Promise.all([
+    prisma.submissions.count({ where: whereClause }),
+    prisma.submissions.findMany({
+      where: whereClause,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { submittedAt: "desc" },
+      select: {
+        submissionId: true,
+        submittedAt: true,
+        status: true,
+        Assignments: {
+          select: {
+            assignmentId: true,
+            title: true,
+            typeAssignment: true,
+            Classes: {
+              select: { classId: true, className: true },
+            },
+          },
+        },
+        Users: {
+          select: { userId: true, name: true, email: true },
+        },
+        SubmissionAttachments: true,
+      },
+    }),
+  ]);
+
+  return { total, submissions };
+};

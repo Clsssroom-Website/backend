@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
-import { getDashboard, getDashboardStats } from "../controllers/dashboardController.js";
+import { getDashboard, getDashboardStats, getPendingSubmissionsToGrade } from "../controllers/dashboardController.js";
 
 const router = Router();
 
@@ -36,5 +36,11 @@ router.get("/", getDashboard);
  * }
  */
 router.get("/stats", getDashboardStats);
+
+/**
+ * GET /api/v1/dashboard/submissions-to-grade
+ * Lấy danh sách bài nộp chưa chấm của giáo viên đang đăng nhập có phân trang.
+ */
+router.get("/submissions-to-grade", getPendingSubmissionsToGrade);
 
 export default router;
