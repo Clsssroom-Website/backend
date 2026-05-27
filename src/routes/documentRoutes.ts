@@ -3,6 +3,7 @@ import { documentController } from "../controllers/documentController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { requireRole } from "../middlewares/roleMiddleware.js";
 import { uploadMultipleDocumentsMiddleware } from "../middlewares/uploadMiddleware.js";
+import { ensureClassActive } from "../middlewares/classMiddleware.js";
 
 const router = Router();
 
@@ -11,6 +12,7 @@ router.post(
   authMiddleware,
   requireRole(["teacher"]),
   uploadMultipleDocumentsMiddleware,
+  ensureClassActive,
   documentController.upload
 );
 
@@ -33,6 +35,7 @@ router.put(
   "/:documentId",
   authMiddleware,
   requireRole(["teacher"]),
+  ensureClassActive,
   uploadMultipleDocumentsMiddleware,
   documentController.update
 );
@@ -42,6 +45,7 @@ router.delete(
   "/:documentId",
   authMiddleware,
   requireRole(["teacher"]),
+  ensureClassActive,
   documentController.delete
 );
 

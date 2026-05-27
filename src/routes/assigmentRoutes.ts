@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireRole } from "../middlewares/roleMiddleware.js";
 import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { ensureClassActive } from "../middlewares/classMiddleware.js";
 import { assignmentController } from "../controllers/assignmentController.js";
 
 const router = Router();
@@ -28,6 +29,7 @@ router.post(
   "/:id/assignments",
   authMiddleware,
   requireRole(["teacher"]),
+  ensureClassActive,
   uploadMultipleMiddleware,
   assignmentController.createAssignment.bind(assignmentController)
 );
@@ -37,6 +39,7 @@ router.put(
   "/:id/assignments/:assignmentId",
   authMiddleware,
   requireRole(["teacher"]),
+  ensureClassActive,
   uploadMultipleMiddleware,
   assignmentController.updateAssignment.bind(assignmentController)
 );
@@ -46,6 +49,7 @@ router.delete(
   "/:id/assignments/:assignmentId",
   authMiddleware,
   requireRole(["teacher"]),
+  ensureClassActive,
   assignmentController.deleteAssignment.bind(assignmentController)
 );
 
@@ -54,6 +58,7 @@ router.delete(
   "/:id/assignments/:assignmentId/attachments/:attachmentId",
   authMiddleware,
   requireRole(["teacher"]),
+  ensureClassActive,
   assignmentController.deleteAttachment.bind(assignmentController)
 );
 
@@ -72,6 +77,7 @@ router.post(
   "/:id/assignments/:assignmentId/submissions/:submissionId/grade",
   authMiddleware,
   requireRole(["teacher"]),
+  ensureClassActive,
   assignmentController.gradeSubmission.bind(assignmentController)
 );
 

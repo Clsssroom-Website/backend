@@ -213,7 +213,14 @@ export class AssignmentService {
    */
   public async getAssignmentById(teacherId: string, assignmentId: string) {
     const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
-    return this.serializeAttachments(assignment);
+    const serialized = await this.serializeAttachments(assignment);
+    const totalSubmissions = await prisma.submissions.count({
+      where: { assignmentId },
+    });
+    return {
+      ...serialized,
+      totalSubmissions,
+    };
   }
 
   /**
@@ -234,7 +241,20 @@ export class AssignmentService {
   ) {
     const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
 
+    // Kiểm tra xem bài tập đã có học sinh nộp bài chưa
+    const totalSubmissions = await prisma.submissions.count({
+      where: { assignmentId },
+    });
+
+    if (totalSubmissions > 0 && data.questions !== undefined) {
+      throw new BadRequestError("Không thể chỉnh sửa câu hỏi/đáp án trắc nghiệm vì bài tập đã có học sinh nộp bài.");
+    }
+
     // Validate
+    if (data.typeAssignment !== undefined && data.typeAssignment !== assignment.typeAssignment) {
+      throw new BadRequestError("Không được phép thay đổi loại bài tập sau khi đã tạo.");
+    }
+
     if (data.title !== undefined && data.title.trim() === "") {
       throw new BadRequestError("Tiêu đề không được để trống.");
     }
@@ -245,7 +265,7 @@ export class AssignmentService {
       if (isNaN(deadlineDate.getTime())) throw new BadRequestError("Hạn nộp không hợp lệ.");
     }
 
-    const typeAssignment = data.typeAssignment ?? (assignment as any).typeAssignment;
+    const typeAssignment = assignment.typeAssignment;
 
     // Validate quiz questions nếu cập nhật sang MULTIPLE_CHOICE
     let validatedQuestions: QuizQuestionInput[] | undefined;
@@ -318,7 +338,11 @@ export class AssignmentService {
     }
 
     const updated = await this.assignmentRepo.findAssignmentById(assignmentId);
-    return this.serializeAttachments(updated);
+    const serialized = await this.serializeAttachments(updated);
+    return {
+      ...serialized,
+      totalSubmissions,
+    };
   }
 
   /**
@@ -341,6 +365,14 @@ export class AssignmentService {
    */
   public async deleteAssignment(teacherId: string, assignmentId: string) {
     const assignment = await this.ensureTeacherOwnsAssignment(teacherId, assignmentId);
+
+    const totalSubmissions = await prisma.submissions.count({
+      where: { assignmentId },
+    });
+    if (totalSubmissions > 0) {
+      throw new BadRequestError("Không thể xóa bài tập này vì đã có học sinh nộp bài.");
+    }
+
     for (const attachment of (assignment.AssignmentAttachments as any[]) ?? []) {
       if (attachment.fileUrl) {
         await (this.storageService as MinioStorageService).deleteFile(attachment.fileUrl);

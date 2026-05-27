@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createClass, updateClass, deleteClass, getAllClasses, getClassById, getClassStudents, getClassStream, removeStudentFromClass, getClassGrades } from "../controllers/classController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { ensureClassActive } from "../middlewares/classMiddleware.js";
 
 
 const router = Router();
@@ -21,16 +22,16 @@ router.get("/:id/students", authMiddleware, getClassStudents);
 router.get("/:id/grades", authMiddleware, getClassGrades);
 
 // DELETE /api/v1/classes/:id/students/:studentId - API xóa học sinh khỏi lớp
-router.delete("/:id/students/:studentId", authMiddleware, removeStudentFromClass);
+router.delete("/:id/students/:studentId", authMiddleware, ensureClassActive, removeStudentFromClass);
 
 // POST /api/v1/classes - API tạo lớp học
 router.post("/", authMiddleware, createClass);
 
 // PUT /api/v1/classes/:id - API cập nhật lớp học
-router.put("/:id", authMiddleware, updateClass);
+router.put("/:id", authMiddleware, ensureClassActive, updateClass);
 
 // DELETE /api/v1/classes/:id - API xóa lớp học
-router.delete("/:id", authMiddleware, deleteClass);
+router.delete("/:id", authMiddleware, ensureClassActive, deleteClass);
 
 
 

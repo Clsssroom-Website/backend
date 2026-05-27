@@ -116,6 +116,11 @@ export const joinClass = async (studentId: string, codeOrLink: string) => {
     throw new NotFoundError("Không tìm thấy lớp học với mã hoặc link này.");
   }
 
+  // Kiểm tra trạng thái lớp học
+  if (targetClass.status === "ENDED") {
+    throw new BadRequestError("Lớp học này đã kết thúc. Bạn không thể tham gia.");
+  }
+
   // 3. Kiểm tra đã tham gia chưa
   const existingEnrollment = await ClassRepo.checkEnrollmentExists(targetClass.classId, studentId);
   if (existingEnrollment) {

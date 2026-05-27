@@ -13,6 +13,7 @@ import {
 } from "../controllers/studentController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
+import { ensureClassActive } from "../middlewares/classMiddleware.js";
 
 const router = Router();
 
@@ -48,11 +49,11 @@ router.get("/assignments/:assignmentId", authMiddleware, getAssignmentDetail);
 
 // POST /api/v1/students/assignments/:assignmentId/submit
 // Nộp bài tự luận (ESSAY) kèm file
-router.post("/assignments/:assignmentId/submit", authMiddleware, uploadMultipleMiddleware, submitAssignment);
+router.post("/assignments/:assignmentId/submit", authMiddleware, ensureClassActive, uploadMultipleMiddleware, submitAssignment);
 
 // POST /api/v1/students/assignments/:assignmentId/submit-quiz
 // Nộp bài trắc nghiệm: body { answers: [{questionId, selectedOptionId}] }
-router.post("/assignments/:assignmentId/submit-quiz", authMiddleware, submitQuizAssignment);
+router.post("/assignments/:assignmentId/submit-quiz", authMiddleware, ensureClassActive, submitQuizAssignment);
 
 // GET /api/v1/students/assignments/:assignmentId/submission
 // Xem bài nộp và điểm số
