@@ -61,6 +61,7 @@ vi.mock("../../config/prisma.js", () => ({
     },
     submissions: {
       findUnique: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
     },
   },
 }));

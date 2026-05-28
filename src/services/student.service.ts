@@ -297,6 +297,64 @@ export const submitQuizAssignment = async (
   };
 };
 
+/**
+ * Hàm nộp bài tập chung phục vụ cho kiểm thử và tính tương thích.
+ */
+export const submitAssignment = async (
+  studentId: string,
+  assignmentId: string,
+  files: { fileName: string; fileUri: string; fileSize: number }[],
+  quizAnswers?: any[]
+) => {
+  const assignment = await StudentRepo.findAssignmentById(assignmentId);
+  if (!assignment) throw new NotFoundError("Không tìm thấy bài tập.");
+
+  const type = (assignment as any).typeAssignment;
+
+  if (type === "MULTIPLE_CHOICE") {
+    if (!quizAnswers) {
+      throw new BadRequestError("Bài tập trắc nghiệm này chưa có câu hỏi.");
+    }
+    const answers = quizAnswers.map((ans) => ({
+      questionId: ans.questionId,
+      selectedOptionId: ans.selectedAnswer || ans.selectedOptionId,
+    }));
+    return submitQuizAssignment(studentId, assignmentId, answers);
+  } else {
+    const classId = (assignment as any).Classes.classId;
+    await ensureStudentEnrolled(studentId, classId);
+
+    const now = new Date();
+    if (assignment.deadline && now > new Date(assignment.deadline)) {
+      throw new BadRequestError("Đã quá hạn nộp bài.");
+    }
+
+    const existingSubmission = await StudentRepo.findSubmissionByStudentAndAssignment(studentId, assignmentId);
+    if (existingSubmission) {
+      throw new BadRequestError("Bạn đã nộp bài tập này rồi.");
+    }
+
+    const submissionId = uuidv4();
+    const attachments = files.map((file) => ({
+      attachmentId: uuidv4(),
+      ...file,
+    }));
+
+    const newSubmission = await StudentRepo.createSubmission(
+      { submissionId, assignmentId, studentId, status: "SUBMITTED" },
+      attachments,
+      [],
+      null
+    );
+
+    if (!newSubmission) throw new BadRequestError("Không thể tạo bài nộp.");
+
+    const attachmentsWithUrls = await serializeSubmissionAttachments(newSubmission.SubmissionAttachments);
+
+    return { ...newSubmission, SubmissionAttachments: attachmentsWithUrls };
+  }
+};
+
 // ─── Submission & Grade View ──────────────────────────────────────────────────
 
 /** Lấy thông tin bài nộp và điểm của học sinh */

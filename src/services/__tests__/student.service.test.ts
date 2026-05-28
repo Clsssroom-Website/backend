@@ -178,6 +178,7 @@ describe("StudentService - submitAssignment", () => {
     expect(StudentRepo.createSubmission).toHaveBeenCalledWith(
       expect.objectContaining({ status: "SUBMITTED", studentId: "student-1" }),
       expect.any(Array),
+      [],
       null // Không có gradeData cho bài thường
     );
     expect(result.submissionId).toBe("sub-1");
@@ -239,6 +240,27 @@ describe("StudentService - submitAssignment", () => {
       SubmissionAttachments: [],
     } as any);
 
+    // Giả lập danh sách câu hỏi trắc nghiệm từ repo
+    const mockQuestions = [
+      {
+        questionId: "q1",
+        points: 1,
+        QuizOptions: [
+          { optionId: "2", optionText: "2", isCorrect: true },
+          { optionId: "3", optionText: "3", isCorrect: false },
+        ],
+      },
+      {
+        questionId: "q2",
+        points: 1,
+        QuizOptions: [
+          { optionId: "4", optionText: "4", isCorrect: true },
+          { optionId: "5", optionText: "5", isCorrect: false },
+        ],
+      },
+    ];
+    vi.mocked(StudentRepo.findQuizQuestionsWithAnswers).mockResolvedValue(mockQuestions as any);
+
     // Học sinh trả lời đúng cả 2 câu
     const quizAnswers = [
       { questionId: "q1", selectedAnswer: "2" },
@@ -250,6 +272,7 @@ describe("StudentService - submitAssignment", () => {
     // createSubmission phải được gọi với gradeData (điểm tự động) và status COMPLETED
     expect(StudentRepo.createSubmission).toHaveBeenCalledWith(
       expect.objectContaining({ status: "COMPLETED" }),
+      expect.any(Array),
       expect.any(Array),
       expect.objectContaining({ score: 10 }) // 2/2 đúng = 10 điểm
     );
