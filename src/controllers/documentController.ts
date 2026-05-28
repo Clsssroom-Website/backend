@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+﻿import { Request, Response, NextFunction } from "express";
 import { DocumentService } from "../services/document.service.js";
 import { uploadDocumentSchema } from "../validators/document.validator.js";
 import { ValidationError, BadRequestError } from "../errors/index.js";
@@ -11,12 +11,12 @@ export class DocumentController {
   public async upload(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       // 1. Zod Validation for body
-      const parsed = uploadDocumentSchema.safeParse({ body: req.body });
+      const parsed = uploadDocumentSchema.body.safeParse(req.body);
       if (!parsed.success) {
         throw new ValidationError("Dữ liệu đầu vào không hợp lệ", parsed.error.issues);
       }
 
-      const { classId, title, description } = parsed.data.body;
+      const { classId, title, description } = parsed.data;
 
       // 2. Check file existence
       const files = req.files as Express.Multer.File[] | undefined;
