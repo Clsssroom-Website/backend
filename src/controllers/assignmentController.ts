@@ -196,8 +196,8 @@ export class AssignmentController {
 
   /**
    * POST /api/v1/classes/:id/assignments/:assignmentId/submissions/:submissionId/grade
-   * Teacher chấm điểm bài nộp
-   * Body: { score: number (0-10), comment?: string }
+   * Teacher chấm điểm bài nộp (chỉ dành cho bài tự luận - ESSAY)
+   * Body: { score: number (0-10), comment?: string (max 1000 ký tự) }
    */
   public async gradeSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -206,15 +206,33 @@ export class AssignmentController {
       const submissionId = req.params.submissionId as string;
       const { score, comment } = req.body;
 
+      // 1. Validate score
       const parsedScore = parseFloat(score);
       if (isNaN(parsedScore) || parsedScore < 0 || parsedScore > 10) {
-        res.status(400).json({ success: false, message: "Điểm số phải từ 0 đến 10." });
-        return;
+        throw new BadRequestError("Điểm số phải là số từ 0 đến 10.");
+      }
+      // Làm tròn 2 chữ số thập phân (tránh 8.9999... hoặc 10.0001)
+      const roundedScore = Math.round(parsedScore * 100) / 100;
+
+      // 2. Validate comment
+      if (comment !== undefined && comment !== null) {
+        if (typeof comment !== "string") {
+          throw new BadRequestError("Nhận xét không hợp lệ.");
+        }
+        if (comment.length > 1000) {
+          throw new BadRequestError("Nhận xét không được vượt quá 1000 ký tự.");
+        }
+      }
+
+      // 3. Chặn chấm điểm thủ công cho bài trắc nghiệm
+      const assignment = await assignmentService["assignmentRepo"].findAssignmentById(assignmentId);
+      if (assignment && assignment.typeAssignment === "MULTIPLE_CHOICE") {
+        throw new BadRequestError("Bài trắc nghiệm được chấm điểm tự động, không thể chấm thủ công.");
       }
 
       await assignmentService.gradeSubmission(teacherId, assignmentId, submissionId, {
-        score: parsedScore,
-        comment,
+        score: roundedScore,
+        comment: comment?.trim(),
       });
 
       res.status(200).json({ success: true, message: "Chấm điểm thành công!" });
@@ -223,5 +241,6 @@ export class AssignmentController {
     }
   }
 }
+
 
 export const assignmentController = new AssignmentController();

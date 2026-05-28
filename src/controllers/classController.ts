@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import * as ClassService from "../services/class.service.js";
-import { UnauthorizedError, ForbiddenError, BadRequestError } from "../errors/index.js";
+import { UnauthorizedError, ForbiddenError, BadRequestError, ValidationError } from "../errors/index.js";
+import { createClassSchema, updateClassSchema } from "../validators/class.validator.js";
 
 // GET /api/v1/classes - API lấy danh sách lớp học theo teacherId hoặc studentId
 export const getAllClasses = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -43,10 +44,14 @@ export const createClass = async (req: Request, res: Response, next: NextFunctio
     }
 
     const teacherId = userPayload.userId;
-    const { className, description, room, topic } = req.body;
-    if (!className) {
-      throw new BadRequestError("className is required");
+
+    // Validate input bằng Zod schema
+    const parsed = createClassSchema.safeParse({ body: req.body });
+    if (!parsed.success) {
+      throw new ValidationError("Dữ liệu đầu vào không hợp lệ", parsed.error.issues);
     }
+
+    const { className, description, room, topic } = parsed.data.body;
 
     const newClass = await ClassService.createClass(teacherId, {
       className,
@@ -115,9 +120,14 @@ export const updateClass = async (req: Request<{ id: string }>, res: Response, n
 
     const teacherId = userPayload.userId;
     const classId = req.params.id as string;
-    const updateData = req.body;
 
-    const updatedClass = await ClassService.updateClass(teacherId, classId, updateData);
+    // Validate input bằng Zod schema
+    const parsed = updateClassSchema.safeParse({ body: req.body });
+    if (!parsed.success) {
+      throw new ValidationError("Dữ liệu đầu vào không hợp lệ", parsed.error.issues);
+    }
+
+    const updatedClass = await ClassService.updateClass(teacherId, classId, parsed.data.body);
 
     res.status(200).json({ success: true, message: "Cập nhật lớp học thành công!", data: updatedClass });
   } catch (error: any) {
