@@ -41,19 +41,41 @@ export const register = async (data: RegisterDTO) => {
 };
 
 export const login = async (data: LoginDTO) => {
-  const user = await UserRepo.findUserByEmail(data.email);
+  const email = data.email.trim();
+  const failedAttempts = await SessionRepo.getFailedLoginAttempts(email);
+  
+  if (failedAttempts >= 5) {
+    const error = new Error("Tài khoản đã bị tạm khóa do đăng nhập sai quá 5 lần. Vui lòng thử lại sau 15 phút.") as Error & { statusCode: number };
+    error.statusCode = 429;
+    throw error;
+  }
+
+  const user = await UserRepo.findUserByEmail(email);
   if (!user) {
-    const error = new Error("Email hoặc mật khẩu không đúng!") as Error & { statusCode: number };
+    const currentFailures = await SessionRepo.incrementFailedLoginAttempts(email, 900);
+    const remaining = 5 - currentFailures;
+    const msg = remaining > 0 
+      ? `Email hoặc mật khẩu không đúng! Bạn còn ${remaining} lần thử.` 
+      : "Tài khoản đã bị tạm khóa do đăng nhập sai quá 5 lần. Vui lòng thử lại sau 15 phút.";
+    const error = new Error(msg) as Error & { statusCode: number };
     error.statusCode = 401;
     throw error;
   }
 
   const isMatch = await hashStrategy.compare(data.password, user.passwordHash);
   if (!isMatch) {
-    const error = new Error("Email hoặc mật khẩu không đúng!") as Error & { statusCode: number };
+    const currentFailures = await SessionRepo.incrementFailedLoginAttempts(email, 900);
+    const remaining = 5 - currentFailures;
+    const msg = remaining > 0 
+      ? `Email hoặc mật khẩu không đúng! Bạn còn ${remaining} lần thử.` 
+      : "Tài khoản đã bị tạm khóa do đăng nhập sai quá 5 lần. Vui lòng thử lại sau 15 phút.";
+    const error = new Error(msg) as Error & { statusCode: number };
     error.statusCode = 401;
     throw error;
   }
+
+  // Reset failed login attempts on successful login
+  await SessionRepo.resetFailedLoginAttempts(email);
 
   const accessToken = tokenStrategy.generateAccessToken({ userId: user.userId, role: user.role });
   const refreshToken = tokenStrategy.generateRefreshToken({ userId: user.userId });

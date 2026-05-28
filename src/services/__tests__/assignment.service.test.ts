@@ -19,6 +19,8 @@ const {
   mockDeleteAllAttachments,
   mockFindSubmissionsByAssignmentId,
   mockUpsertGrade,
+  mockUpsertQuizQuestions,
+  mockDeleteQuizQuestions,
 } = vi.hoisted(() => ({
   mockFindAssignmentById: vi.fn(),
   mockCreateAssignment: vi.fn(),
@@ -30,6 +32,8 @@ const {
   mockDeleteAllAttachments: vi.fn(),
   mockFindSubmissionsByAssignmentId: vi.fn(),
   mockUpsertGrade: vi.fn(),
+  mockUpsertQuizQuestions: vi.fn(),
+  mockDeleteQuizQuestions: vi.fn(),
 }));
 
 // Mock Repository sử dụng các mock functions trên
@@ -46,6 +50,8 @@ vi.mock("../../repositories/assignment.repo.js", () => {
       deleteAllAttachments = mockDeleteAllAttachments;
       findSubmissionsByAssignmentId = mockFindSubmissionsByAssignmentId;
       upsertGrade = mockUpsertGrade;
+      upsertQuizQuestions = mockUpsertQuizQuestions;
+      deleteQuizQuestions = mockDeleteQuizQuestions;
     },
   };
 });
@@ -348,6 +354,19 @@ describe("AssignmentService - deleteAssignment", () => {
     expect(mockDeleteAllAttachments).toHaveBeenCalledWith("assign-1");
     expect(mockDeleteAssignment).toHaveBeenCalledWith("assign-1");
   });
+
+  it("should throw BadRequestError if assignment has submissions", async () => {
+    mockFindAssignmentById.mockResolvedValue(mockAssignment as any);
+    // Mock prisma.submissions.count to return a count > 0
+    vi.mocked(prisma.submissions.count).mockResolvedValueOnce(1);
+
+    await expect(service.deleteAssignment("teacher-1", "assign-1"))
+      .rejects.toThrow(BadRequestError);
+
+    // Verify it doesn't proceed to delete attachments or the assignment itself
+    expect(mockDeleteAllAttachments).not.toHaveBeenCalled();
+    expect(mockDeleteAssignment).not.toHaveBeenCalled();
+  });
 });
 
 describe("AssignmentService - getSubmissionsByAssignmentId", () => {
@@ -443,5 +462,162 @@ describe("AssignmentService - gradeSubmission", () => {
 
     await expect(service.gradeSubmission("teacher-1", "assign-1", "sub-1", { score: 9 }))
       .rejects.toThrow(BadRequestError);
+  });
+});
+
+describe("AssignmentService - MULTIPLE_CHOICE assignments", () => {
+  let service: AssignmentService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new AssignmentService();
+  });
+
+  const validQuestions = [
+    {
+      questionText: "Câu hỏi 1",
+      points: 1,
+      sortOrder: 1,
+      options: [
+        { optionText: "Đáp án A", isCorrect: true },
+        { optionText: "Đáp án B", isCorrect: false },
+      ],
+    },
+  ];
+
+  it("should create a MULTIPLE_CHOICE assignment successfully", async () => {
+    vi.mocked(prisma.classes.findUnique).mockResolvedValue(mockClassRecord as any);
+    vi.mocked(prisma.users.findUnique).mockResolvedValue(mockTeacherRecord as any);
+
+    const createdRaw = {
+      assignmentId: "assign-multiple-choice",
+      classId: "class-1",
+      title: "Trắc nghiệm 1",
+      typeAssignment: "MULTIPLE_CHOICE",
+      AssignmentAttachments: [],
+    };
+
+    mockCreateAssignment.mockResolvedValue(createdRaw as any);
+    mockFindAssignmentById.mockResolvedValue(createdRaw as any);
+    mockUpsertQuizQuestions.mockResolvedValue([]);
+
+    const result = await service.createAssignment("teacher-1", "class-1", {
+      title: "Trắc nghiệm 1",
+      deadline: "2026-06-01T00:00:00.000Z",
+      typeAssignment: "MULTIPLE_CHOICE",
+      questions: validQuestions,
+    });
+
+    expect(mockCreateAssignment).toHaveBeenCalledWith({
+      classId: "class-1",
+      title: "Trắc nghiệm 1",
+      description: undefined,
+      deadline: new Date("2026-06-01T00:00:00.000Z"),
+      typeAssignment: "MULTIPLE_CHOICE",
+    });
+
+    expect(mockUpsertQuizQuestions).toHaveBeenCalledWith("assign-multiple-choice", [
+      {
+        questionText: "Câu hỏi 1",
+        points: 1,
+        sortOrder: 1,
+        options: [
+          { optionText: "Đáp án A", isCorrect: true },
+          { optionText: "Đáp án B", isCorrect: false },
+        ],
+      },
+    ]);
+
+    expect(result.assignmentId).toBe("assign-multiple-choice");
+  });
+
+  it("should throw BadRequestError if MULTIPLE_CHOICE assignment has no questions", async () => {
+    vi.mocked(prisma.classes.findUnique).mockResolvedValue(mockClassRecord as any);
+
+    await expect(
+      service.createAssignment("teacher-1", "class-1", {
+        title: "Trắc nghiệm 1",
+        deadline: "2026-06-01T00:00:00.000Z",
+        typeAssignment: "MULTIPLE_CHOICE",
+        questions: [],
+      })
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if a question has empty text", async () => {
+    vi.mocked(prisma.classes.findUnique).mockResolvedValue(mockClassRecord as any);
+
+    await expect(
+      service.createAssignment("teacher-1", "class-1", {
+        title: "Trắc nghiệm 1",
+        deadline: "2026-06-01T00:00:00.000Z",
+        typeAssignment: "MULTIPLE_CHOICE",
+        questions: [
+          {
+            questionText: " ",
+            options: [
+              { optionText: "A", isCorrect: true },
+              { optionText: "B", isCorrect: false },
+            ],
+          },
+        ],
+      })
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if a question has less than 2 options", async () => {
+    vi.mocked(prisma.classes.findUnique).mockResolvedValue(mockClassRecord as any);
+
+    await expect(
+      service.createAssignment("teacher-1", "class-1", {
+        title: "Trắc nghiệm 1",
+        deadline: "2026-06-01T00:00:00.000Z",
+        typeAssignment: "MULTIPLE_CHOICE",
+        questions: [
+          {
+            questionText: "Câu hỏi 1",
+            options: [{ optionText: "A", isCorrect: true }],
+          },
+        ],
+      })
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if a question has no correct option", async () => {
+    vi.mocked(prisma.classes.findUnique).mockResolvedValue(mockClassRecord as any);
+
+    await expect(
+      service.createAssignment("teacher-1", "class-1", {
+        title: "Trắc nghiệm 1",
+        deadline: "2026-06-01T00:00:00.000Z",
+        typeAssignment: "MULTIPLE_CHOICE",
+        questions: [
+          {
+            questionText: "Câu hỏi 1",
+            options: [
+              { optionText: "A", isCorrect: false },
+              { optionText: "B", isCorrect: false },
+            ],
+          },
+        ],
+      })
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError when updating MULTIPLE_CHOICE questions if assignment already has submissions", async () => {
+    const mockAssignmentWithSubmissions = {
+      ...mockAssignment,
+      assignmentId: "assign-multiple-choice",
+      typeAssignment: "MULTIPLE_CHOICE",
+    };
+
+    mockFindAssignmentById.mockResolvedValue(mockAssignmentWithSubmissions as any);
+    vi.mocked(prisma.submissions.count).mockResolvedValue(1); // Bài tập đã có 1 bài nộp
+
+    await expect(
+      service.updateAssignment("teacher-1", "assign-multiple-choice", {
+        questions: validQuestions,
+      })
+    ).rejects.toThrow(BadRequestError);
   });
 });

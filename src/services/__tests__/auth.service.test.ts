@@ -132,6 +132,9 @@ describe("AuthService - register", () => {
 describe("AuthService - login", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(SessionRepo.getFailedLoginAttempts).mockResolvedValue(0);
+    vi.mocked(SessionRepo.incrementFailedLoginAttempts).mockResolvedValue(1);
+    vi.mocked(SessionRepo.resetFailedLoginAttempts).mockResolvedValue(undefined);
   });
 
   it("should throw 401 error if user does not exist", async () => {
@@ -194,6 +197,41 @@ describe("AuthService - login", () => {
       // Kiểm tra statusCode phải là 401 (Unauthorized)
       expect(err.statusCode).toBe(401);
     }
+  });
+
+  it("should throw 429 error if failed login attempts are 5 or more", async () => {
+    vi.mocked(SessionRepo.getFailedLoginAttempts).mockResolvedValue(5);
+
+    await expect(
+      AuthService.login({ email: "locked@example.com", password: "anyPassword" })
+    ).rejects.toThrow("Tài khoản đã bị tạm khóa do đăng nhập sai quá 5 lần. Vui lòng thử lại sau 15 phút.");
+
+    // Should not check user or password
+    expect(UserRepo.findUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it("should increment failed login attempts on invalid credentials and return 401", async () => {
+    vi.mocked(SessionRepo.getFailedLoginAttempts).mockResolvedValue(2);
+    vi.mocked(SessionRepo.incrementFailedLoginAttempts).mockResolvedValue(3);
+    vi.mocked(UserRepo.findUserByEmail).mockResolvedValue(null);
+
+    await expect(
+      AuthService.login({ email: "failed@example.com", password: "password123" })
+    ).rejects.toThrow("Email hoặc mật khẩu không đúng! Bạn còn 2 lần thử.");
+
+    expect(SessionRepo.incrementFailedLoginAttempts).toHaveBeenCalledWith("failed@example.com", 900);
+  });
+
+  it("should reset failed attempts when login succeeds", async () => {
+    vi.mocked(UserRepo.findUserByEmail).mockResolvedValue(mockUser as any);
+    vi.mocked(SessionRepo.saveRefreshToken).mockResolvedValue(undefined);
+
+    await AuthService.login({
+      email: "test@example.com",
+      password: "correctPassword",
+    });
+
+    expect(SessionRepo.resetFailedLoginAttempts).toHaveBeenCalledWith("test@example.com");
   });
 });
 

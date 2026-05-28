@@ -159,139 +159,279 @@ describe("StudentService - getAssignmentsForStudent", () => {
 
 // ─── 3. submitAssignment ──────────────────────────────────────────────────────
 
-describe("StudentService - submitAssignment", () => {
+// ─── 3. submitEssayAssignment & submitQuizAssignment ──────────────────────────
+
+describe("StudentService - submitEssayAssignment", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("should create submission successfully for a normal assignment", async () => {
-    // Giả lập: bài tập tồn tại, còn hạn, học sinh trong lớp, chưa nộp
-    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockAssignment as any);
+  const mockEssayAssignment = {
+    ...mockAssignment,
+    typeAssignment: "ESSAY",
+  };
+
+  const mockFiles = [
+    { fileName: "bai_lam.pdf", fileUri: "submissions/abc.pdf", fileSize: 1024 },
+  ];
+
+  it("should create submission successfully for an essay assignment", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockEssayAssignment as any);
     vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
     vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
     vi.mocked(StudentRepo.createSubmission).mockResolvedValue({
       ...mockSubmission,
-      SubmissionAttachments: [],
+      SubmissionAttachments: mockFiles.map(f => ({ ...f, attachmentId: "att-1" })),
     } as any);
 
-    const result = await StudentService.submitAssignment("student-1", "assign-1", []);
+    const result = await StudentService.submitEssayAssignment("student-1", "assign-1", mockFiles);
 
-    // createSubmission phải được gọi với status SUBMITTED (không phải COMPLETED)
     expect(StudentRepo.createSubmission).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "SUBMITTED", studentId: "student-1" }),
-      expect.any(Array),
+      expect.objectContaining({ status: "SUBMITTED", studentId: "student-1", assignmentId: "assign-1" }),
+      expect.arrayContaining([
+        expect.objectContaining({ fileName: "bai_lam.pdf", fileUri: "submissions/abc.pdf" })
+      ]),
       [],
-      null // Không có gradeData cho bài thường
+      null
     );
     expect(result.submissionId).toBe("sub-1");
   });
 
-  it("should throw NotFoundError when assignment does not exist", async () => {
-    // Giả lập: bài tập không tồn tại
+  it("should throw NotFoundError if assignment does not exist", async () => {
     vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(null);
-
-    await expect(StudentService.submitAssignment("student-1", "bad-assign", []))
+    await expect(StudentService.submitEssayAssignment("student-1", "bad-assign", mockFiles))
       .rejects.toThrow(NotFoundError);
   });
 
-  it("should throw ForbiddenError when student is not enrolled in the class", async () => {
-    // Giả lập: bài tập tồn tại nhưng học sinh không trong lớp
-    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockAssignment as any);
+  it("should throw ForbiddenError if student is not enrolled", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockEssayAssignment as any);
     vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue(null);
 
-    await expect(StudentService.submitAssignment("student-99", "assign-1", []))
+    await expect(StudentService.submitEssayAssignment("student-99", "assign-1", mockFiles))
       .rejects.toThrow(ForbiddenError);
   });
 
-  it("should throw BadRequestError when deadline has passed", async () => {
-    // Giả lập: bài tập đã quá hạn nộp
-    const expiredAssignment = { ...mockAssignment, deadline: pastDeadline };
+  it("should throw BadRequestError if assignment type is not ESSAY", async () => {
+    const wrongTypeAssignment = { ...mockEssayAssignment, typeAssignment: "MULTIPLE_CHOICE" };
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(wrongTypeAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+
+    await expect(StudentService.submitEssayAssignment("student-1", "assign-1", mockFiles))
+      .rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if deadline has passed", async () => {
+    const expiredAssignment = { ...mockEssayAssignment, deadline: pastDeadline };
     vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(expiredAssignment as any);
     vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
 
-    await expect(StudentService.submitAssignment("student-1", "assign-1", []))
+    await expect(StudentService.submitEssayAssignment("student-1", "assign-1", mockFiles))
       .rejects.toThrow(BadRequestError);
   });
 
-  it("should throw BadRequestError when student has already submitted", async () => {
-    // Giả lập: học sinh đã nộp bài trước đó rồi
-    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockAssignment as any);
+  it("should throw BadRequestError if student already submitted", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockEssayAssignment as any);
     vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
     vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(mockSubmission as any);
 
-    await expect(StudentService.submitAssignment("student-1", "assign-1", []))
+    await expect(StudentService.submitEssayAssignment("student-1", "assign-1", mockFiles))
       .rejects.toThrow(BadRequestError);
   });
 
-  it("should auto-grade and create COMPLETED submission for MULTIPLE_CHOICE assignment", async () => {
-    // Giả lập: bài tập trắc nghiệm với 2 câu hỏi
-    const quizAssignment = {
-      ...mockAssignment,
-      typeAssignment: "MULTIPLE_CHOICE",
-      quizData: JSON.stringify([
-        { id: "q1", questionText: "1+1=?", correctAnswer: "2", score: 1 },
-        { id: "q2", questionText: "2+2=?", correctAnswer: "4", score: 1 },
-      ]),
-    };
-    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(quizAssignment as any);
+  it("should throw BadRequestError if files list is empty", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockEssayAssignment as any);
     vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
     vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
+
+    await expect(StudentService.submitEssayAssignment("student-1", "assign-1", []))
+      .rejects.toThrow(BadRequestError);
+  });
+});
+
+describe("StudentService - submitQuizAssignment", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const mockQuizAssignment = {
+    ...mockAssignment,
+    typeAssignment: "MULTIPLE_CHOICE",
+  };
+
+  const mockQuestions = [
+    {
+      questionId: "q1",
+      points: 2,
+      QuizOptions: [
+        { optionId: "opt-1a", optionText: "Option A", isCorrect: true },
+        { optionId: "opt-1b", optionText: "Option B", isCorrect: false },
+      ],
+    },
+    {
+      questionId: "q2",
+      points: 3,
+      QuizOptions: [
+        { optionId: "opt-2a", optionText: "Option A", isCorrect: false },
+        { optionId: "opt-2b", optionText: "Option B", isCorrect: true },
+      ],
+    },
+  ];
+
+  it("should auto-grade and create COMPLETED submission successfully", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockQuizAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+    vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
+    vi.mocked(StudentRepo.findQuizQuestionsWithAnswers).mockResolvedValue(mockQuestions as any);
     vi.mocked(StudentRepo.createSubmission).mockResolvedValue({
       ...mockSubmission,
       status: "COMPLETED",
-      SubmissionAttachments: [],
+      StudentQuizAnswers: [
+        { questionId: "q1", selectedOptionId: "opt-1a" },
+        { questionId: "q2", selectedOptionId: "opt-2b" },
+      ],
     } as any);
 
-    // Giả lập danh sách câu hỏi trắc nghiệm từ repo
-    const mockQuestions = [
-      {
-        questionId: "q1",
-        points: 1,
-        QuizOptions: [
-          { optionId: "2", optionText: "2", isCorrect: true },
-          { optionId: "3", optionText: "3", isCorrect: false },
-        ],
-      },
-      {
-        questionId: "q2",
-        points: 1,
-        QuizOptions: [
-          { optionId: "4", optionText: "4", isCorrect: true },
-          { optionId: "5", optionText: "5", isCorrect: false },
-        ],
-      },
-    ];
-    vi.mocked(StudentRepo.findQuizQuestionsWithAnswers).mockResolvedValue(mockQuestions as any);
-
-    // Học sinh trả lời đúng cả 2 câu
-    const quizAnswers = [
-      { questionId: "q1", selectedAnswer: "2" },
-      { questionId: "q2", selectedAnswer: "4" },
+    const answers = [
+      { questionId: "q1", selectedOptionId: "opt-1a" }, // Correct (2 pts)
+      { questionId: "q2", selectedOptionId: "opt-2b" }, // Correct (3 pts)
     ];
 
-    await StudentService.submitAssignment("student-1", "assign-1", [], quizAnswers);
+    const result = await StudentService.submitQuizAssignment("student-1", "assign-1", answers);
 
-    // createSubmission phải được gọi với gradeData (điểm tự động) và status COMPLETED
+    // Both correct -> 10/10 points
     expect(StudentRepo.createSubmission).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "COMPLETED" }),
-      expect.any(Array),
-      expect.any(Array),
-      expect.objectContaining({ score: 10 }) // 2/2 đúng = 10 điểm
+      expect.objectContaining({ status: "COMPLETED", studentId: "student-1" }),
+      [],
+      answers,
+      expect.objectContaining({ score: 10, comment: expect.stringContaining("Đúng 2/2 câu") })
     );
+    expect(result.status).toBe("COMPLETED");
+    expect(result.score).toBe(10);
+    expect(result.correctAnswers).toBe(2);
   });
 
-  it("should throw BadRequestError when MULTIPLE_CHOICE quiz has no answers provided", async () => {
-    // Giả lập: bài trắc nghiệm nhưng học sinh không gửi đáp án
-    const quizAssignment = {
-      ...mockAssignment,
-      typeAssignment: "MULTIPLE_CHOICE",
-      quizData: JSON.stringify([{ id: "q1", correctAnswer: "A" }]),
-    };
-    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(quizAssignment as any);
+  it("should auto-grade partially correct answers", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockQuizAssignment as any);
     vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
     vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
+    vi.mocked(StudentRepo.findQuizQuestionsWithAnswers).mockResolvedValue(mockQuestions as any);
+    vi.mocked(StudentRepo.createSubmission).mockResolvedValue({
+      ...mockSubmission,
+      status: "COMPLETED",
+      StudentQuizAnswers: [
+        { questionId: "q1", selectedOptionId: "opt-1a" },
+        { questionId: "q2", selectedOptionId: "opt-2a" },
+      ],
+    } as any);
 
-    // quizAnswers = undefined → phải báo lỗi
-    await expect(StudentService.submitAssignment("student-1", "assign-1", [], undefined))
+    const answers = [
+      { questionId: "q1", selectedOptionId: "opt-1a" }, // Correct (2 pts)
+      { questionId: "q2", selectedOptionId: "opt-2a" }, // Incorrect (0 pts)
+    ];
+
+    const result = await StudentService.submitQuizAssignment("student-1", "assign-1", answers);
+
+    // q1 correct (2 pts out of 5 pts) -> 2/5 * 10 = 4 points
+    expect(StudentRepo.createSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "COMPLETED" }),
+      [],
+      answers,
+      expect.objectContaining({ score: 4 })
+    );
+    expect(result.score).toBe(4);
+    expect(result.correctAnswers).toBe(1);
+  });
+
+  it("should throw NotFoundError if assignment does not exist", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(null);
+    await expect(StudentService.submitQuizAssignment("student-1", "bad-assign", []))
+      .rejects.toThrow(NotFoundError);
+  });
+
+  it("should throw ForbiddenError if student is not enrolled", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockQuizAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue(null);
+
+    await expect(StudentService.submitQuizAssignment("student-99", "assign-1", []))
+      .rejects.toThrow(ForbiddenError);
+  });
+
+  it("should throw BadRequestError if assignment type is not MULTIPLE_CHOICE", async () => {
+    const wrongTypeAssignment = { ...mockQuizAssignment, typeAssignment: "ESSAY" };
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(wrongTypeAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+
+    await expect(StudentService.submitQuizAssignment("student-1", "assign-1", []))
       .rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if deadline has passed", async () => {
+    const expiredAssignment = { ...mockQuizAssignment, deadline: pastDeadline };
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(expiredAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+
+    await expect(StudentService.submitQuizAssignment("student-1", "assign-1", []))
+      .rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if student already submitted", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockQuizAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+    vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(mockSubmission as any);
+
+    await expect(StudentService.submitQuizAssignment("student-1", "assign-1", []))
+      .rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if quiz has no questions in database", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockQuizAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+    vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
+    vi.mocked(StudentRepo.findQuizQuestionsWithAnswers).mockResolvedValue([]);
+
+    await expect(StudentService.submitQuizAssignment("student-1", "assign-1", []))
+      .rejects.toThrow(BadRequestError);
+  });
+
+  it("should throw BadRequestError if a selected question does not belong to the assignment", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockQuizAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+    vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
+    vi.mocked(StudentRepo.findQuizQuestionsWithAnswers).mockResolvedValue(mockQuestions as any);
+
+    const wrongAnswers = [
+      { questionId: "q-non-existent", selectedOptionId: "opt-1a" },
+    ];
+
+    await expect(StudentService.submitQuizAssignment("student-1", "assign-1", wrongAnswers))
+      .rejects.toThrow(BadRequestError);
+  });
+});
+
+describe("StudentService - submitAssignment (compatibility wrapper)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("should delegate to submitQuizAssignment if MULTIPLE_CHOICE", async () => {
+    const mockQuizAssignment = { ...mockAssignment, typeAssignment: "MULTIPLE_CHOICE" };
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockQuizAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+    vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
+    vi.mocked(StudentRepo.findQuizQuestionsWithAnswers).mockResolvedValue([
+      { questionId: "q1", points: 1, QuizOptions: [{ optionId: "opt-1", isCorrect: true }] }
+    ] as any);
+    vi.mocked(StudentRepo.createSubmission).mockResolvedValue(mockSubmission as any);
+
+    const quizAnswers = [{ questionId: "q1", selectedAnswer: "opt-1" }];
+    await StudentService.submitAssignment("student-1", "assign-1", [], quizAnswers);
+
+    expect(StudentRepo.createSubmission).toHaveBeenCalled();
+  });
+
+  it("should submit essay successfully if not MULTIPLE_CHOICE", async () => {
+    vi.mocked(StudentRepo.findAssignmentById).mockResolvedValue(mockAssignment as any);
+    vi.mocked(ClassRepo.checkEnrollmentExists).mockResolvedValue({ enrollmentId: "e-1" } as any);
+    vi.mocked(StudentRepo.findSubmissionByStudentAndAssignment).mockResolvedValue(null);
+    vi.mocked(StudentRepo.createSubmission).mockResolvedValue(mockSubmission as any);
+
+    await StudentService.submitAssignment("student-1", "assign-1", []);
+
+    expect(StudentRepo.createSubmission).toHaveBeenCalled();
   });
 });
 
