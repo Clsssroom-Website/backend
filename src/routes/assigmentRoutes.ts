@@ -3,6 +3,9 @@ import { requireRole } from "../middlewares/roleMiddleware.js";
 import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { ensureClassActive } from "../middlewares/classMiddleware.js";
+import { validate } from "../middlewares/validate.js";
+import { createAssignmentSchema, updateAssignmentSchema } from "../validators/assignment.validator.js";
+import { gradeSubmissionSchema } from "../validators/grade.validator.js";
 import { assignmentController } from "../controllers/assignmentController.js";
 
 const router = Router();
@@ -31,6 +34,7 @@ router.post(
   requireRole(["teacher"]),
   ensureClassActive,
   uploadMultipleMiddleware,
+  validate(createAssignmentSchema),
   assignmentController.createAssignment.bind(assignmentController)
 );
 
@@ -41,6 +45,7 @@ router.put(
   requireRole(["teacher"]),
   ensureClassActive,
   uploadMultipleMiddleware,
+  validate(updateAssignmentSchema),
   assignmentController.updateAssignment.bind(assignmentController)
 );
 
@@ -78,6 +83,7 @@ router.post(
   authMiddleware,
   requireRole(["teacher"]),
   ensureClassActive,
+  validate(gradeSubmissionSchema),
   assignmentController.gradeSubmission.bind(assignmentController)
 );
 

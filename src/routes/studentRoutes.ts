@@ -14,6 +14,8 @@ import {
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { uploadMultipleMiddleware } from "../middlewares/uploadMiddleware.js";
 import { ensureClassActive } from "../middlewares/classMiddleware.js";
+import { validate } from "../middlewares/validate.js";
+import { joinClassSchema, submitQuizAssignmentSchema, submitEssayAssignmentSchema } from "../validators/submission.validator.js";
 
 const router = Router();
 
@@ -25,7 +27,7 @@ router.get("/dashboard", authMiddleware, getDashboard);
 // ─── Class ────────────────────────────────────────────────────────────────────
 
 // POST /api/v1/students/classes/join
-router.post("/classes/join", authMiddleware, joinClass);
+router.post("/classes/join", authMiddleware, validate(joinClassSchema), joinClass);
 
 // GET /api/v1/students/classes
 router.get("/classes", authMiddleware, getEnrolledClasses);
@@ -49,11 +51,11 @@ router.get("/assignments/:assignmentId", authMiddleware, getAssignmentDetail);
 
 // POST /api/v1/students/assignments/:assignmentId/submit
 // Nộp bài tự luận (ESSAY) kèm file
-router.post("/assignments/:assignmentId/submit", authMiddleware, ensureClassActive, uploadMultipleMiddleware, submitAssignment);
+router.post("/assignments/:assignmentId/submit", authMiddleware, ensureClassActive, uploadMultipleMiddleware, validate(submitEssayAssignmentSchema), submitAssignment);
 
 // POST /api/v1/students/assignments/:assignmentId/submit-quiz
 // Nộp bài trắc nghiệm: body { answers: [{questionId, selectedOptionId}] }
-router.post("/assignments/:assignmentId/submit-quiz", authMiddleware, ensureClassActive, submitQuizAssignment);
+router.post("/assignments/:assignmentId/submit-quiz", authMiddleware, ensureClassActive, validate(submitQuizAssignmentSchema), submitQuizAssignment);
 
 // GET /api/v1/students/assignments/:assignmentId/submission
 // Xem bài nộp và điểm số

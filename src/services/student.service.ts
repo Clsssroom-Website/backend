@@ -229,14 +229,15 @@ export const submitQuizAssignment = async (
   let earnedPoints = 0;
 
   for (const q of questions) {
-    totalPoints += q.points;
+    const questionPoints = q.points || 0;
+    totalPoints += questionPoints;
     const studentAnswer = answers.find((a) => a.questionId === q.questionId);
     if (studentAnswer) {
       const correctOption = q.QuizOptions.find(
         (o) => o.optionId === studentAnswer.selectedOptionId && o.isCorrect
       );
       if (correctOption) {
-        earnedPoints += q.points;
+        earnedPoints += questionPoints;
       }
     }
   }
