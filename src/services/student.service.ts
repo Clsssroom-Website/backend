@@ -312,13 +312,22 @@ export const getSubmissionAndGrade = async (studentId: string, assignmentId: str
   const firstGrade = submission.Grades?.length > 0 ? submission.Grades[0] : null;
 
   // Định dạng câu trả lời trắc nghiệm
-  const quizAnswers = (submission.StudentQuizAnswers ?? []).map((ans: any) => ({
-    questionId: ans.questionId,
-    questionText: ans.QuizQuestions?.questionText,
-    selectedOptionId: ans.selectedOptionId,
-    selectedOptionText: ans.QuizOptions?.optionText,
-    points: ans.QuizQuestions?.points,
-  }));
+  const questions = await StudentRepo.findQuizQuestionsWithAnswers(assignmentId);
+  const quizAnswers = (submission.StudentQuizAnswers ?? []).map((ans: any) => {
+    const q = questions.find((item) => item.questionId === ans.questionId);
+    const selectedOption = q?.QuizOptions.find((o) => o.optionId === ans.selectedOptionId);
+    const correctOption = q?.QuizOptions.find((o) => o.isCorrect);
+
+    return {
+      questionId: ans.questionId,
+      questionText: ans.QuizQuestions?.questionText,
+      selectedOptionId: ans.selectedOptionId,
+      selectedOptionText: selectedOption?.optionText ?? ans.QuizOptions?.optionText,
+      correctOptionId: correctOption?.optionId,
+      isCorrect: selectedOption?.optionId === correctOption?.optionId,
+      points: ans.QuizQuestions?.points,
+    };
+  });
 
   return {
     submissionId: submission.submissionId,
