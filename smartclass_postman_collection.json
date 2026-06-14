@@ -1,0 +1,1422 @@
+{
+  "info": {
+    "_postman_id": "c1a89c92-7f78-4330-9830-ec6287fbb648",
+    "name": "SmartClass API Collection",
+    "description": "Postman Collection chứa đầy đủ các endpoint của hệ thống quản lý học tập SmartClass. Đã cấu hình sẵn biến môi trường, header, và kịch bản tự động lưu Access Token sau khi đăng nhập.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Xác thực & Tài khoản (Auth)",
+      "item": [
+        {
+          "name": "Đăng ký tài khoản (Register)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nguyễn Văn Học Sinh\",\n  \"email\": \"student1@gmail.com\",\n  \"password\": \"1234567\",\n  \"role\": \"student\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Đăng ký tài khoản mới với vai trò học sinh (student) hoặc giáo viên (teacher)."
+          },
+          "response": []
+        },
+        {
+          "name": "API_LOG_001 - Đăng nhập thành công (Email tồn tại & Password khớp)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API_LOG_001 - Trạng thái phản hồi phải là HTTP 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"API_LOG_001 - Phản hồi thành công (success is true)\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test(\"API_LOG_001 - Body chứa access token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property(\"accessToken\");",
+                  "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", jsonData.data.accessToken);",
+                  "    console.log(\"Đã tự động lưu Access Token vào biến bộ sưu tập!\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student1@gmail.com\",\n  \"password\": \"1234567\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "API_LOG_001: Đăng nhập thành công với Email tồn tại và Password khớp. Trạng thái mong đợi: HTTP 200 OK và trả về accessToken."
+          },
+          "response": []
+        },
+        {
+          "name": "API_LOG_002 - Đăng nhập thất bại (Email tồn tại & Password không khớp)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API_LOG_002 - Trạng thái phản hồi phải là HTTP 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"API_LOG_002 - Phản hồi thất bại (success is false)\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(false);",
+                  "});",
+                  "",
+                  "pm.test(\"API_LOG_002 - Thông điệp báo lỗi phù hợp\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include(\"không đúng\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student1@gmail.com\",\n  \"password\": \"wrongpassword\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "API_LOG_002: Đăng nhập thất bại với Email tồn tại nhưng mật khẩu sai. Trạng thái mong đợi: HTTP 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "API_LOG_003 - Đăng nhập thất bại (Email không tồn tại & Password bất kỳ)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API_LOG_003 - Trạng thái phản hồi phải là HTTP 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"API_LOG_003 - Phản hồi thất bại (success is false)\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(false);",
+                  "});",
+                  "",
+                  "pm.test(\"API_LOG_003 - Thông điệp báo lỗi phù hợp\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include(\"không đúng\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nonexistent@gmail.com\",\n  \"password\": \"anypassword\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "API_LOG_003: Đăng nhập thất bại với Email không tồn tại. Trạng thái mong đợi: HTTP 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "Làm mới Access Token (Refresh Token)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh-token"
+              ]
+            },
+            "description": "API sử dụng cookie `refreshToken` để cấp lại Access Token mới khi token cũ hết hạn."
+          },
+          "response": []
+        },
+        {
+          "name": "Đăng xuất (Logout)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Đăng xuất và hủy refresh token trong DB/Cookie."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Người dùng (Users)",
+      "item": [
+        {
+          "name": "Lấy danh sách người dùng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy thông tin người dùng theo ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "user-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Lớp học (Classes)",
+      "item": [
+        {
+          "name": "Lấy danh sách lớp học",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes?search=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Lọc lớp học theo tên"
+                }
+              ]
+            },
+            "description": "Lấy các lớp do mình dạy (Giáo viên) hoặc đã tham gia (Học sinh)."
+          },
+          "response": []
+        },
+        {
+          "name": "Tạo lớp học mới (Giáo viên)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"className\": \"Lập trình Node.js K18\",\n  \"description\": \"Lớp học Backend chuyên sâu\",\n  \"room\": \"Phòng máy 402\",\n  \"topic\": \"Công nghệ thông tin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes"
+              ]
+            },
+            "description": "Giáo viên tạo lớp học mới. Hệ thống tự sinh joinCode."
+          },
+          "response": []
+        },
+        {
+          "name": "Chi tiết lớp học",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy bảng tin lớp học (Stream)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/stream",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            },
+            "description": "Lấy dòng thời gian bài đăng gồm cả bài tập lẫn tài liệu."
+          },
+          "response": []
+        },
+        {
+          "name": "Danh sách học sinh trong lớp",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/students",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cập nhật lớp học",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"className\": \"Lập trình Node.js K18 (Đã cập nhật)\",\n  \"description\": \"Mô tả mới\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa học sinh khỏi lớp (Trục xuất)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/students/:studentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "students",
+                ":studentId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                },
+                {
+                  "key": "studentId",
+                  "value": "student-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa lớp học",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xem bảng điểm lớp học (Giáo viên)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/grades",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "grades"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Tài liệu học tập (Documents)",
+      "item": [
+        {
+          "name": "Tải lên tài liệu mới (Upload)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "classId",
+                  "value": "class-uuid-here",
+                  "type": "text"
+                },
+                {
+                  "key": "title",
+                  "value": "Tài liệu chương 1: Biến và Hằng số",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Các tệp slide đính kèm bài giảng số 1",
+                  "type": "text"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": [],
+                  "description": "Chọn các tệp đính kèm (tối đa 10 tệp)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "upload"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy danh sách tài liệu của lớp",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/class/:classId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "class",
+                ":classId"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy URL tải/xem file đính kèm",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/attachment/:attachmentId/download?action=download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "attachment",
+                ":attachmentId",
+                "download"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "download",
+                  "description": "Để action=download nếu muốn ép trình duyệt tải xuống"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "attachmentId",
+                  "value": "attachment-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Chỉnh sửa bài tài liệu (Update)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Tiêu đề tài liệu mới cập nhật",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Mô tả mới",
+                  "type": "text"
+                },
+                {
+                  "key": "keepAttachmentIds",
+                  "value": "[\"att-uuid-1\"]",
+                  "description": "Mảng các ID tệp đính kèm cũ muốn giữ lại",
+                  "type": "text"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": [],
+                  "description": "Các tệp đính kèm mới tải thêm"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/:documentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                ":documentId"
+              ],
+              "variable": [
+                {
+                  "key": "documentId",
+                  "value": "document-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa tài liệu",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/:documentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                ":documentId"
+              ],
+              "variable": [
+                {
+                  "key": "documentId",
+                  "value": "document-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Giáo viên - Dashboard",
+      "item": [
+        {
+          "name": "Lấy tổng quan Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard?limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Giới hạn số bài nộp hiển thị"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy số liệu đếm nhanh (Stats)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy bài nộp chưa chấm (Phân trang)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/submissions-to-grade?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "submissions-to-grade"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Học sinh (Students)",
+      "item": [
+        {
+          "name": "Lấy Dashboard học sinh",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/students/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "dashboard"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tham gia lớp học mới (Join Class)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"joinCode\": \"NJS83H\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/students/classes/join",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "classes",
+                "join"
+              ]
+            },
+            "description": "Học sinh tham gia lớp học qua joinCode 6 ký tự hoặc link mời."
+          },
+          "response": []
+        },
+        {
+          "name": "Danh sách các lớp học đã tham gia",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/students/classes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "classes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Chi tiết lớp học của học sinh",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/students/classes/:classId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "classes",
+                ":classId"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "class-uuid-here"
+                }
+              ]
+            },
+            "description": "Lấy chi tiết lớp (đã được ẩn trường joinCode và joinLink)."
+          },
+          "response": []
+        },
+        {
+          "name": "Xem điểm số cá nhân của lớp",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/students/classes/:classId/grades",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "classes",
+                ":classId",
+                "grades"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Danh sách bài tập trong lớp (Học sinh)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/students/classes/:classId/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "classes",
+                ":classId",
+                "assignments"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xem chi tiết bài tập (Học sinh)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/students/assignments/:assignmentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "assignments",
+                ":assignmentId"
+              ],
+              "variable": [
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            },
+            "description": "Lấy thông tin đề bài (câu hỏi trắc nghiệm sẽ bị ẩn trường isCorrect)."
+          },
+          "response": []
+        },
+        {
+          "name": "Nộp bài tập tự luận (ESSAY)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "attachments",
+                  "type": "file",
+                  "src": [],
+                  "description": "Chọn file làm bài nộp lên (PDF, Zip...)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/students/assignments/:assignmentId/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "assignments",
+                ":assignmentId",
+                "submit"
+              ],
+              "variable": [
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            },
+            "description": "Học sinh tải tệp nộp bài tự luận lên hệ thống MinIO."
+          },
+          "response": []
+        },
+        {
+          "name": "Nộp bài trắc nghiệm (QUIZ)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    {\n      \"questionId\": \"q-uuid-001\",\n      \"selectedOptionId\": \"opt-uuid-01\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/students/assignments/:assignmentId/submit-quiz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "assignments",
+                ":assignmentId",
+                "submit-quiz"
+              ],
+              "variable": [
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            },
+            "description": "Học sinh nộp câu trả lời bài trắc nghiệm. Hệ thống tự động chấm điểm và trả về kết quả chi tiết."
+          },
+          "response": []
+        },
+        {
+          "name": "Xem bài nộp và điểm số",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/students/assignments/:assignmentId/submission",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "students",
+                "assignments",
+                ":assignmentId",
+                "submission"
+              ],
+              "variable": [
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Giáo viên - Quản lý bài tập & Chấm điểm",
+      "item": [
+        {
+          "name": "Danh sách bài tập của lớp (Giáo viên)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Chi tiết bài tập (Giáo viên - Có isCorrect)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments/:assignmentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments",
+                ":assignmentId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                },
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            },
+            "description": "Lấy chi tiết đề bài bao gồm hiển thị trường đáp án đúng `isCorrect` để giáo viên xem lại."
+          },
+          "response": []
+        },
+        {
+          "name": "Tạo bài tập mới (Tự luận hoặc Trắc nghiệm)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Bài kiểm tra trắc nghiệm số 1",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Hoàn thành 10 câu hỏi sau đây.",
+                  "type": "text"
+                },
+                {
+                  "key": "deadline",
+                  "value": "2026-06-30T23:59:00.000Z",
+                  "type": "text"
+                },
+                {
+                  "key": "typeAssignment",
+                  "value": "MULTIPLE_CHOICE",
+                  "description": "Chọn ESSAY hoặc MULTIPLE_CHOICE",
+                  "type": "text"
+                },
+                {
+                  "key": "questions",
+                  "value": "[\n  {\n    \"questionText\": \"Node.js chạy trên Engine V8 của trình duyệt nào?\",\n    \"points\": 1,\n    \"sortOrder\": 1,\n    \"options\": [\n      { \"optionText\": \"Google Chrome\", \"isCorrect\": true },\n      { \"optionText\": \"Firefox\", \"isCorrect\": false }\n    ]\n  }\n]",
+                  "description": "Mảng câu hỏi JSON string (bắt buộc đối với trắc nghiệm)",
+                  "type": "text"
+                },
+                {
+                  "key": "attachments",
+                  "type": "file",
+                  "src": [],
+                  "description": "File đề bài đính kèm (chỉ hỗ trợ tự luận ESSAY)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                }
+              ]
+            },
+            "description": "Tạo bài tập mới cho lớp học. Khi tạo thành công, hệ thống tự động gửi email thông báo cho học sinh."
+          },
+          "response": []
+        },
+        {
+          "name": "Cập nhật bài tập",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Tên bài tập cập nhật",
+                  "type": "text"
+                },
+                {
+                  "key": "keepAttachmentIds",
+                  "value": "[\"att-uuid-1\"]",
+                  "description": "Giữ lại file cũ này, các file cũ khác bị xóa",
+                  "type": "text"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": [],
+                  "description": "File mới đính kèm thêm"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments/:assignmentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments",
+                ":assignmentId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                },
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            },
+            "description": "Cập nhật tiêu đề, hạn nộp hoặc câu hỏi trắc nghiệm (Cấm sửa câu hỏi trắc nghiệm khi đã có học sinh nộp bài)."
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa bài tập",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments/:assignmentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments",
+                ":assignmentId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                },
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            },
+            "description": "Xóa bài tập. Cấm xóa khi bài tập đã có học sinh nộp."
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa một file đính kèm của bài tập",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments/:assignmentId/attachments/:attachmentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments",
+                ":assignmentId",
+                "attachments",
+                ":attachmentId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                },
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                },
+                {
+                  "key": "attachmentId",
+                  "value": "attachment-uuid-here"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy danh sách các bài làm đã nộp",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments/:assignmentId/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments",
+                ":assignmentId",
+                "submissions"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                },
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                }
+              ]
+            },
+            "description": "Lấy danh sách bài làm của học sinh để chuẩn bị chấm điểm."
+          },
+          "response": []
+        },
+        {
+          "name": "Chấm điểm bài tự luận của học sinh",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"score\": 8.5,\n  \"comment\": \"Bài làm tốt, có giải thích thuật toán rõ ràng!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/:id/assignments/:assignmentId/submissions/:submissionId/grade",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                ":id",
+                "assignments",
+                ":assignmentId",
+                "submissions",
+                ":submissionId",
+                "grade"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "class-uuid-here"
+                },
+                {
+                  "key": "assignmentId",
+                  "value": "assignment-uuid-here"
+                },
+                {
+                  "key": "submissionId",
+                  "value": "submission-uuid-here"
+                }
+              ]
+            },
+            "description": "Chấm điểm thủ công cho bài tự luận. Cấm chấm thủ công cho bài trắc nghiệm."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

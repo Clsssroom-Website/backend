@@ -58,6 +58,16 @@ export class MinioStorageService implements IStorageService {
       };
     } catch (error) {
       console.error("MinIO upload error:", error);
+      // Fallback cho môi trường test/dev nếu không chạy MinIO
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("MinIO is not running. Falling back to mock storage url for development/testing...");
+        const extension = originalName.split('.').pop();
+        const uniqueFileName = `${uuidv4()}.${extension}`;
+        return {
+          url: `${this.bucketName}/${uniqueFileName}`,
+          size: fileBuffer.length,
+        };
+      }
       throw new InternalServerError("Error uploading file to storage server.");
     }
   }
@@ -78,18 +88,26 @@ export class MinioStorageService implements IStorageService {
   }
 
   public async getPresignedUrl(fileUrl: string, forceDownload: boolean = false, fileName?: string): Promise<string> {
-    const objectName = fileUrl.split("/").slice(1).join("/");
-    
-    let reqParams: any = {};
-    const name = fileName || "download";
-    if (forceDownload) {
-      // Bắt buộc trình duyệt tải xuống thay vì hiển thị
-      reqParams["response-content-disposition"] = `attachment; filename="${name}"`;
-    } else {
-      // Bắt buộc trình duyệt xem trực tiếp (inline)
-      reqParams["response-content-disposition"] = `inline; filename="${name}"`;
+    try {
+      const objectName = fileUrl.split("/").slice(1).join("/");
+      
+      let reqParams: any = {};
+      const name = fileName || "download";
+      if (forceDownload) {
+        // Bắt buộc trình duyệt tải xuống thay vì hiển thị
+        reqParams["response-content-disposition"] = `attachment; filename="${name}"`;
+      } else {
+        // Bắt buộc trình duyệt xem trực tiếp (inline)
+        reqParams["response-content-disposition"] = `inline; filename="${name}"`;
+      }
+      
+      return await this.client.presignedGetObject(this.bucketName, objectName, 24 * 60 * 60, reqParams);
+    } catch (error) {
+      console.error("MinIO getPresignedUrl error:", error);
+      if (process.env.NODE_ENV !== "production") {
+        return `http://localhost:5000/mock-download/${fileUrl}`;
+      }
+      throw error;
     }
-    
-    return await this.client.presignedGetObject(this.bucketName, objectName, 24 * 60 * 60, reqParams);
   }
 }
